@@ -14,6 +14,6 @@ class KTextStyle {
 }
 
 class KConstantURL {
-  static const String url = "https://aapkakaam.com";
+  static const String url = "13.127.30.175:3000";
   // static const String url = "http://localhost:3000";
 }
