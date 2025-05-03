@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "616869645172",
+    "project_id": "aapkakaam-f35f3",
+    "storage_bucket": "aapkakaam-f35f3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:616869645172:android:60f13f29f86f719a0a7a21",
+        "android_client_info": {
+          "package_name": "com.example.app_aapkakaam"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPobuekyRSgLT6Ug34D9BTPUnXeXQ0rJA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

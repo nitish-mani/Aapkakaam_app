@@ -1,0 +1,98 @@
+import 'package:app_aapkakaam/data/constants.dart';
+import 'package:app_aapkakaam/data/notifiers.dart';
+import 'package:app_aapkakaam/navBarWidgets/home_page.dart';
+import 'package:app_aapkakaam/widgets/firebase_notification.dart';
+import 'package:app_aapkakaam/widgets/version_checker.dart';
+import 'package:app_aapkakaam/widgets/welcome_page.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart'; // <-- Added
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  await FirebaseNotifications.initialize(); // Initialize Firebase
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      systemNavigationBarColor: Colors.white30, // Change navigation bar color
+      systemNavigationBarIconBrightness: Brightness.dark, // Change icon color
+    ),
+  );
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]).then((
+    _,
+  ) {
+    runApp(const MyApp());
+  });
+}
+
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    themeMode();
+    FirebaseNotifications.initialize(); // Initialize FCM here
+  }
+
+  void themeMode() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final bool? repeat = prefs.getBool(KConstant.themeModeKey);
+    final bool? isVendor1 = prefs.getBool("isVendor");
+    final String? isLoggedInValue = prefs.getString("isLoggedIn");
+    isDarkThemeNotifier.value = repeat ?? false;
+    isVendor.value = isVendor1 ?? false;
+    isLoggedIn.value = isLoggedInValue == "true" ? true : false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScreenUtilInit(
+      designSize: const Size(
+        375,
+        812,
+      ), // <-- iPhone 11 reference size (or your Figma design size)
+      minTextAdapt: true,
+      splitScreenMode: true,
+      builder: (context, child) {
+        return ValueListenableBuilder(
+          valueListenable: isDarkThemeNotifier,
+          builder: (context, isDarkTheme, child) {
+            return ValueListenableBuilder(
+              valueListenable: isLoggedIn,
+              builder: (context, isLoggedIn, child) {
+                return ValueListenableBuilder(
+                  valueListenable: isVendor,
+                  builder: (context, value, child) {
+                    return MaterialApp(
+                      debugShowCheckedModeBanner: false,
+                      title: 'Aapkakaam',
+                      theme: ThemeData(
+                        colorScheme: ColorScheme.fromSeed(
+                          seedColor: Colors.blue,
+                          brightness:
+                              isDarkTheme ? Brightness.dark : Brightness.light,
+                        ),
+                      ),
+                      home: VersionChecker(
+                        child:
+                            isLoggedIn ? const HomePage() : const WelcomePage(),
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+}
