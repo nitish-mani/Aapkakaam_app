@@ -18,28 +18,19 @@ class ViewShare extends StatefulWidget {
 
 class _ViewShareState extends State<ViewShare> {
   Future<Map<String, dynamic>>? futureCards;
-  int orderDetails = 1;
+  int pageNo = 0;
+  int totalShared = 0;
+  int totalPages = 0;
+  bool _isLoading = false;
+  bool _isFetched = false;
   UserModel? user;
   VendorModel? vendor;
-  int pageNo = 1;
-  int totalShared = 0;
-  late Map<dynamic, bool> isLoadingC;
-  late Map<dynamic, bool> isLoading;
-  String? ratingOrderId;
-  final TextEditingController ratingController = TextEditingController();
+  List<dynamic> _shareList = [];
 
   @override
   void initState() {
     super.initState();
-    isLoadingC = {}; // Initialize as empty map
-    isLoading = {}; // Initialize as empty map
     _loadUserData();
-  }
-
-  @override
-  void dispose() {
-    ratingController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadUserData() async {
@@ -51,11 +42,6 @@ class _ViewShareState extends State<ViewShare> {
       final decodedUser = jsonDecode(userData);
       setState(() {
         user = UserModel.fromJson(decodedUser);
-        futureCards = _fetchCards(
-          decodedUser['userId'],
-          pageNo,
-          'Bearer ${decodedUser['token']}',
-        );
       });
     }
 
@@ -63,146 +49,96 @@ class _ViewShareState extends State<ViewShare> {
       final decodedVendor = jsonDecode(vendorData);
       setState(() {
         vendor = VendorModel.fromJson(decodedVendor);
-        futureCards = _fetchCards(
-          decodedVendor['vendorId'],
-          pageNo,
-          'Bearer ${decodedVendor['token']}',
-        );
       });
     }
   }
 
-  Future<Map<String, dynamic>> _fetchCards(
-    String userId,
-    int pageNo,
-    String token,
-  ) async {
-    final url = Uri.parse(
-      isVendor.value
-          ? "${KConstantURL.url}/vendor/getShare/$userId/$pageNo"
-          : "${KConstantURL.url}/user/getShare/$userId/$pageNo",
-    );
+  Future<void> _fetchShareData() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _isFetched = true;
+    });
+
+    final prefs = await SharedPreferences.getInstance();
+    final userData = prefs.getString('user');
+    final vendorData = prefs.getString('vendor');
+    final isVendorUser = vendorData != null;
+
+    String token;
+    String userId;
+
+    if (isVendorUser && vendorData != null) {
+      final decodedVendor = jsonDecode(vendorData);
+      token = 'Bearer ${decodedVendor['token']}';
+      userId = decodedVendor['vendorId'];
+    } else if (userData != null) {
+      final decodedUser = jsonDecode(userData);
+      token = 'Bearer ${decodedUser['token']}';
+      userId = decodedUser['userId'];
+    } else {
+      setState(() => _isLoading = false);
+      _showErrorDialog(context, 'User data not found');
+      return;
+    }
 
     try {
+      final url = Uri.parse(
+        isVendorUser
+            ? "${KConstantURL.url}/vendor/getShare/$userId/$pageNo"
+            : "${KConstantURL.url}/user/getShare/$userId/$pageNo",
+      );
+
       final response = await http.get(url, headers: {"Authorization": token});
+      print(json.decode(response.body));
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
-        totalShared = jsonResponse['total'] ?? 0;
-        // initializeIsLoadingCFromResponse(jsonResponse);
-        print(jsonResponse);
-        return jsonResponse;
+        final shareList = jsonResponse['share'] ?? [];
+        final total = jsonResponse['total'] ?? 0;
+
+        // Calculate total pages correctly (same as OrdersPage)
+        int totalPages = (total / 12).ceil();
+        // Ensure at least 1 page even if total is 0
+        final int totalPagesFinal = totalPages > 0 ? totalPages : 1;
+
+        if (mounted) {
+          setState(() {
+            _shareList = shareList;
+            totalShared = total;
+            totalPages = totalPagesFinal;
+            _isLoading = false;
+          });
+        }
+      } else {
+        final error = json.decode(response.body);
+        if (mounted) {
+          setState(() => _isLoading = false);
+          _showErrorDialog(
+            context,
+            error['message'] ?? 'Failed to load share data',
+          );
+        }
       }
-      throw Exception("Failed to load orders: ${response.statusCode}");
     } catch (e) {
-      throw Exception("Error fetching orders: $e");
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showErrorDialog(context, 'Error: $e');
+      }
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    // final isPortrait = mediaQuery.orientation == Orientation.portrait;
-
-    return ValueListenableBuilder<bool>(
-      valueListenable: isDarkThemeNotifier,
-      builder: (context, isDarkTheme, _) {
-        return ValueListenableBuilder<bool>(
-          valueListenable: isVendor,
-          builder: (context, isVendor, _) {
-            return Scaffold(
-              appBar: AppBar(
-                title: Text(
-                  "View Sharing",
-                  style: TextStyle(
-                    color: isDarkTheme ? Colors.white : Colors.black,
-                    fontWeight: FontWeight.bold,
-                    fontSize: mediaQuery.size.width * 0.05,
-                  ),
-                ),
-                backgroundColor: isDarkTheme ? Colors.black : Colors.white,
-                iconTheme: IconThemeData(
-                  color: isDarkTheme ? Colors.white : Colors.black,
-                ),
-                centerTitle: true,
-              ),
-              body: Container(
-                height: mediaQuery.size.height * 0.85,
-                padding: EdgeInsets.all(mediaQuery.size.width * 0.02),
-                decoration: BoxDecoration(
-                  color: isDarkTheme ? Colors.teal : Colors.amber,
-                ),
-                child: Column(
-                  children: [
-                    Expanded(child: _buildShareList(isDarkTheme, mediaQuery)),
-                    SizedBox(height: mediaQuery.size.height * 0.01),
-                    _buildPaginationControls(isDarkTheme, mediaQuery),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildPaginationControls(bool isDarkTheme, MediaQueryData mediaQuery) {
-    final canGoBack = pageNo > 1;
-    final canGoForward = totalShared > 12 && pageNo < totalShared / 12;
-
-    return Container(
-      height: mediaQuery.size.height * 0.06,
-      padding: EdgeInsets.symmetric(horizontal: mediaQuery.size.width * 0.02),
-      decoration: BoxDecoration(
-        color: isDarkTheme ? Colors.black : Colors.white,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new),
-            color: isDarkTheme ? Colors.white : Colors.black,
-            onPressed: canGoBack ? _goToPreviousPage : null,
-          ),
-          Text(
-            '$pageNo',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: mediaQuery.size.width * 0.045,
-              color: isDarkTheme ? Colors.white : Colors.black,
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.arrow_forward_ios),
-            color: isDarkTheme ? Colors.white : Colors.black,
-            onPressed:
-                canGoForward ? _goToNextPage : () => _showEndDialog(context),
-          ),
-        ],
-      ),
-    );
   }
 
   void _goToPreviousPage() {
     setState(() {
       pageNo--;
-      futureCards = _fetchCards(
-        user?.userId.toString() ?? vendor?.vendorId.toString() ?? '',
-        pageNo,
-        'Bearer ${user?.token ?? vendor?.token ?? ''}',
-      );
+      _fetchShareData();
     });
   }
 
   void _goToNextPage() {
     setState(() {
       pageNo++;
-      futureCards = _fetchCards(
-        user?.userId.toString() ?? vendor?.vendorId.toString() ?? '',
-        pageNo,
-        'Bearer ${user?.token ?? vendor?.token ?? ''}',
-      );
+      _fetchShareData();
     });
   }
 
@@ -223,96 +159,271 @@ class _ViewShareState extends State<ViewShare> {
     );
   }
 
-  Widget _buildShareList(bool isDarkTheme, MediaQueryData mediaQuery) {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: futureCards,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(
-            child: CircularProgressIndicator(
-              color: isDarkTheme ? Colors.white : Colors.black,
-            ),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              "Error: ${snapshot.error}",
-              style: TextStyle(
-                color: isDarkTheme ? Colors.white : Colors.black,
-                fontSize: mediaQuery.size.width * 0.04,
-              ),
-            ),
-          );
-        }
-
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return Center(
-            child: Text(
-              "No share found.",
-              style: TextStyle(
-                color: isDarkTheme ? Colors.white : Colors.black,
-                fontSize: mediaQuery.size.width * 0.04,
-              ),
-            ),
-          );
-        }
-
-        final shareList = (snapshot.data!["share"] ?? []) as List<dynamic>;
-
-        if (shareList.isEmpty) {
-          return Center(
-            child: Column(
+  void _showErrorDialog(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder:
+          (_) => AlertDialog(
+            title: Row(
               children: [
-                SizedBox(height: 18),
-                Center(child: BannerAdWidget()),
-                SizedBox(height: 18),
+                const Icon(Icons.error_outline, color: Colors.red),
+                const SizedBox(width: 8),
                 Text(
-                  _getEmptyStateMessage(),
+                  'Error',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("OK"),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // Format date to local time (Asia/Kolkata)
+  String _formatDate(String dateString) {
+    try {
+      final DateTime utcDate = DateTime.parse(dateString);
+      // Convert to Asia/Kolkata (UTC+5:30)
+      final DateTime localDate = utcDate.add(
+        const Duration(hours: 5, minutes: 30),
+      );
+      return "${localDate.day}/${localDate.month}/${localDate.year} ${localDate.hour.toString().padLeft(2, '0')}:${localDate.minute.toString().padLeft(2, '0')}";
+    } catch (e) {
+      return dateString;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: isDarkThemeNotifier,
+      builder: (context, isDarkTheme, _) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  "Share",
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: mediaQuery.size.width * 0.04,
                     color: isDarkTheme ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: mediaQuery.size.width * 0.05,
+                  ),
+                ),
+                Text(
+                  "Total Share = $totalShared",
+                  style: TextStyle(
+                    color: isDarkTheme ? Colors.white70 : Colors.black54,
+                    fontSize: mediaQuery.size.width * 0.035,
                   ),
                 ),
               ],
             ),
-          );
-        }
-
-        return ListView.builder(
-          padding: EdgeInsets.symmetric(
-            horizontal: mediaQuery.size.width * 0.02,
+            backgroundColor: isDarkTheme ? Colors.black : Colors.white,
+            iconTheme: IconThemeData(
+              color: isDarkTheme ? Colors.white : Colors.black,
+            ),
+            centerTitle: true,
+            leading: IconButton(
+              icon: Icon(
+                Icons.close,
+                color: isDarkTheme ? Colors.white : Colors.black,
+              ),
+              onPressed: () => Navigator.pop(context),
+            ),
           ),
-          itemCount: shareList.length,
-          itemBuilder:
-              (context, index) => Column(
-                children: [
-                  index % 5 == 0
-                      ? Center(child: BannerAdWidget())
-                      : SizedBox.shrink(),
-                  index % 5 == 0 ? SizedBox(height: 8) : SizedBox.shrink(),
-                  _buildShareCard(
-                    context,
-                    shareList[index],
-                    isDarkTheme,
-                    mediaQuery,
+          body: Container(
+            height: mediaQuery.size.height * 0.85,
+            padding: EdgeInsets.all(mediaQuery.size.width * 0.02),
+            decoration: BoxDecoration(
+              color: isDarkTheme ? Colors.teal : Colors.amber,
+            ),
+            child: Column(
+              children: [
+                Expanded(
+                  child:
+                      _isFetched
+                          ? _buildShareList(isDarkTheme, mediaQuery)
+                          : _buildFetchButton(isDarkTheme, mediaQuery),
+                ),
+                if (_isFetched && _shareList.isNotEmpty) ...[
+                  SizedBox(height: mediaQuery.size.height * 0.01),
+                  _buildPaginationControls(isDarkTheme, mediaQuery),
+                ],
+                if (!_isFetched) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Tap "Fetch Share Data" to view your shared contacts',
+                    style: TextStyle(
+                      color: isDarkTheme ? Colors.white70 : Colors.black54,
+                      fontSize: mediaQuery.size.width * 0.035,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ],
-              ),
+              ],
+            ),
+          ),
         );
       },
     );
   }
 
-  String _getEmptyStateMessage() {
-    return "You haven't shared to anyone yet.";
+  Widget _buildFetchButton(bool isDarkTheme, MediaQueryData mediaQuery) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.share_outlined,
+            size: mediaQuery.size.width * 0.15,
+            color: isDarkTheme ? Colors.white70 : Colors.black54,
+          ),
+          SizedBox(height: mediaQuery.size.height * 0.02),
+          ElevatedButton(
+            onPressed: _fetchShareData,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: !isDarkTheme ? Colors.teal : Colors.amber,
+              padding: EdgeInsets.symmetric(
+                horizontal: mediaQuery.size.width * 0.08,
+                vertical: mediaQuery.size.height * 0.02,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'Fetch Share Data',
+              style: TextStyle(
+                color: isDarkTheme ? Colors.white : Colors.black,
+                fontWeight: FontWeight.bold,
+                fontSize: mediaQuery.size.width * 0.04,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaginationControls(bool isDarkTheme, MediaQueryData mediaQuery) {
+    final canGoBack = pageNo > 1;
+    final canGoForward = pageNo < totalPages;
+    final totalPage = (totalShared / 12).ceil();
+    final page = pageNo + 1;
+    return Container(
+      height: mediaQuery.size.height * 0.06,
+      padding: EdgeInsets.symmetric(horizontal: mediaQuery.size.width * 0.02),
+      decoration: BoxDecoration(
+        color: isDarkTheme ? Colors.black : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new),
+            color: isDarkTheme ? Colors.white : Colors.black,
+            onPressed: canGoBack ? _goToPreviousPage : null,
+          ),
+          Text(
+            '$page/$totalPage',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: mediaQuery.size.width * 0.045,
+              color: isDarkTheme ? Colors.white : Colors.black,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.arrow_forward_ios),
+            color: isDarkTheme ? Colors.white : Colors.black,
+            onPressed:
+                canGoForward ? _goToNextPage : () => _showEndDialog(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShareList(bool isDarkTheme, MediaQueryData mediaQuery) {
+    if (_isLoading) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(color: Colors.amber),
+            SizedBox(height: mediaQuery.size.height * 0.02),
+            Text(
+              'Loading...',
+              style: TextStyle(
+                color: isDarkTheme ? Colors.white : Colors.black,
+                fontSize: mediaQuery.size.width * 0.04,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_shareList.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.share_outlined,
+              size: mediaQuery.size.width * 0.1,
+              color: isDarkTheme ? Colors.white54 : Colors.black54,
+            ),
+            SizedBox(height: mediaQuery.size.height * 0.02),
+            Text(
+              "You haven't shared to anyone yet.",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: mediaQuery.size.width * 0.045,
+                color: isDarkTheme ? Colors.white : Colors.black,
+              ),
+            ),
+            SizedBox(height: mediaQuery.size.height * 0.01),
+            Center(child: BannerAdWidget()),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: EdgeInsets.symmetric(horizontal: mediaQuery.size.width * 0.02),
+      itemCount: _shareList.length,
+      itemBuilder:
+          (context, index) => Column(
+            children: [
+              if (index % 5 == 0) ...[
+                Center(child: BannerAdWidget()),
+                SizedBox(height: 8),
+              ],
+              _buildShareCard(
+                context,
+                _shareList[index],
+                isDarkTheme,
+                mediaQuery,
+              ),
+            ],
+          ),
+    );
   }
 
   Widget _buildShareCard(
     BuildContext context,
-    dynamic order,
+    dynamic share,
     bool isDarkTheme,
     MediaQueryData mediaQuery,
   ) {
@@ -335,70 +446,54 @@ class _ViewShareState extends State<ViewShare> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildShareInfoRow('Name', order['name'], isDarkTheme, isSmallScreen),
-          _buildShareInfoRow(
-            'Mobile',
-            order['phoneNo'].toString(),
-            isDarkTheme,
-            isSmallScreen,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Phone No :',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: isSmallScreen ? 12 : 14,
+                  color: isDarkTheme ? Colors.white : Colors.black,
+                ),
+              ),
+              Text(
+                share['phoneNo']?.toString() ?? 'N/A',
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 12 : 14,
+                  color: isDarkTheme ? Colors.white70 : Colors.black87,
+                ),
+              ),
+            ],
           ),
-          _buildShareInfoRow(
-            'Profession',
-            order['type'],
-            isDarkTheme,
-            isSmallScreen,
-          ),
-          _buildShareInfoRow('Date', order['date'], isDarkTheme, isSmallScreen),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildShareInfoRow(
-    String label,
-    String value,
-    bool isDarkTheme,
-    bool isSmallScreen,
-  ) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 2.0 : 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: isSmallScreen ? 12 : 14,
-              color: isDarkTheme ? Colors.white : Colors.black,
-            ),
-          ),
-          Text(
-            _capitalizeWords(value),
-            style: TextStyle(
-              fontSize: isSmallScreen ? 12 : 14,
-              color: _getStatusColor(orderDetails),
-            ),
+          SizedBox(height: mediaQuery.size.height * 0.005),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Date :',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: isSmallScreen ? 12 : 14,
+                  color: isDarkTheme ? Colors.white : Colors.black,
+                ),
+              ),
+              Text(
+                _formatDate(share['shareDate'] ?? share['date'] ?? ''),
+                style: TextStyle(
+                  fontSize: isSmallScreen ? 12 : 14,
+                  color: isDarkTheme ? Colors.white70 : Colors.black87,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
-  }
-
-  Color _getStatusColor(int status) {
-    switch (status) {
-      case 1:
-        return Colors.blue;
-      case 2:
-        return Colors.green;
-      case 3:
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
   }
 
   String _capitalizeWords(String input) {
+    if (input.isEmpty) return '';
     return input
         .split(' ')
         .map(

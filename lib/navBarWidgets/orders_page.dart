@@ -888,7 +888,7 @@ class _OrdersPageState extends State<OrdersPage> {
   Widget _buildPaginationControls(bool isDarkTheme, MediaQueryData mediaQuery) {
     final canGoBack = pageNo > 1;
     final canGoForward = totalOrders > 12 && pageNo < totalOrders / 12;
-
+    final totalPages = (totalOrders / 12).ceil();
     return Container(
       height: mediaQuery.size.height * 0.06,
       padding: EdgeInsets.symmetric(horizontal: mediaQuery.size.width * 0.02),
@@ -905,7 +905,7 @@ class _OrdersPageState extends State<OrdersPage> {
             onPressed: canGoBack ? _goToPreviousPage : null,
           ),
           Text(
-            '$pageNo',
+            '$pageNo/$totalPages',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: mediaQuery.size.width * 0.045,
@@ -1021,7 +1021,7 @@ class _OrdersPageState extends State<OrdersPage> {
               child: Container(
                 padding: EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: Colors.green,
+                  color: Colors.pink,
                   shape: BoxShape.circle,
                 ),
                 constraints: BoxConstraints(minWidth: 20, minHeight: 20),
