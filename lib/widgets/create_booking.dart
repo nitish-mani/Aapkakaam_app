@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
+import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -878,6 +879,8 @@ class _CreateBookingState extends State<CreateBooking> {
                   ),
                   SizedBox(height: mediaQuery.size.height * 0.04),
                   _buildActionButtons(context, mediaQuery),
+                  SizedBox(height: mediaQuery.size.height * 0.02),
+                  Center(child: BannerAdWidget()),
                 ],
               ),
             ),

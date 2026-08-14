@@ -2,6 +2,7 @@
 
 import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:app_aapkakaam/widgets/available_vendor.dart';
+import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:flutter/material.dart';
 
 class BookingDateSelection extends StatefulWidget {
@@ -182,6 +183,8 @@ class _BookingDateSelectionState extends State<BookingDateSelection> {
                           ),
                         ),
                       ),
+                      SizedBox(height: 8),
+                      Center(child: BannerAdWidget()),
                     ],
                   ),
                 ),

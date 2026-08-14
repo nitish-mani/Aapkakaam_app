@@ -1,17 +1,19 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
 class VersionChecker extends StatefulWidget {
   final Widget child;
-  const VersionChecker({Key? key, required this.child}) : super(key: key);
+  const VersionChecker({super.key, required this.child});
 
   @override
   State<VersionChecker> createState() => _VersionCheckerState();
 }
 
 class _VersionCheckerState extends State<VersionChecker> {
-  String _currentVersion = '';
-  String _latestVersion = '1.0.1'; // Example (normally fetched from API)
+  String _currentVersion = ''; // Example (normally fetched from API)
 
   @override
   void initState() {
@@ -20,14 +22,17 @@ class _VersionCheckerState extends State<VersionChecker> {
   }
 
   Future<void> _checkVersion() async {
+    final response = await http.get(
+      Uri.parse("https://app-version-check.pages.dev/app_version_check.json"),
+    );
+    print(jsonDecode(response.body));
+    final String latestVersion = jsonDecode(response.body)['version'];
     final info = await PackageInfo.fromPlatform();
     setState(() {
       _currentVersion = info.version;
-      print("Current Version: $_currentVersion");
-      print("Latest Version: $_latestVersion");
     });
 
-    if (_currentVersion != _latestVersion) {
+    if (_currentVersion != latestVersion) {
       _showUpdateDialog();
     }
   }

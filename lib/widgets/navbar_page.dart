@@ -4,7 +4,7 @@ import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:flutter/material.dart';
 
 class NavbarPage extends StatefulWidget {
-  NavbarPage({super.key});
+  const NavbarPage({super.key});
 
   @override
   State<NavbarPage> createState() => _NavbarPageState();

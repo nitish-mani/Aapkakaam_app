@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:app_aapkakaam/models/data_model.dart';
+import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,19 +27,42 @@ class _OrdersPageState extends State<OrdersPage> {
   late Map<dynamic, bool> isLoading;
   String? ratingOrderId;
   final TextEditingController ratingController = TextEditingController();
+  final TextEditingController reviewController = TextEditingController();
+  int _selectedRating = 0;
+
+  // Counters for badges
+  int pendingCount = 0;
+  int completedCount = 0;
+  int canceledCount = 0;
 
   @override
   void initState() {
     super.initState();
-    isLoadingC = {}; // Initialize as empty map
-    isLoading = {}; // Initialize as empty map
+    isLoadingC = {};
+    isLoading = {};
     _loadUserData();
   }
 
   @override
   void dispose() {
     ratingController.dispose();
+    reviewController.dispose();
     super.dispose();
+  }
+
+  // Helper to get booking ID from order
+  String _getBookingId(dynamic order) {
+    if (order['bookingId'] != null &&
+        order['bookingId'].toString().isNotEmpty) {
+      return order['bookingId'].toString();
+    }
+    if (order['_id'] != null && order['_id'].toString().isNotEmpty) {
+      return order['_id'].toString();
+    }
+    if (order['id'] != null && order['id'].toString().isNotEmpty) {
+      return order['id'].toString();
+    }
+    return '';
   }
 
   Future<void> _loadUserData() async {
@@ -84,10 +108,12 @@ class _OrdersPageState extends State<OrdersPage> {
 
     try {
       final response = await http.get(url, headers: {"Authorization": token});
+      print(response);
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
         totalOrders = jsonResponse['total'] ?? 0;
         initializeIsLoadingCFromResponse(jsonResponse);
+        _calculateOrderCounts(jsonResponse);
         return jsonResponse;
       }
       throw Exception("Failed to load orders: ${response.statusCode}");
@@ -96,10 +122,34 @@ class _OrdersPageState extends State<OrdersPage> {
     }
   }
 
+  void _calculateOrderCounts(Map<String, dynamic> response) {
+    List<dynamic> orders = response['orders'] ?? [];
+    int pending = 0;
+    int completed = 0;
+    int canceled = 0;
+
+    for (var order in orders) {
+      if (order['cancelOrder'] == true) {
+        canceled++;
+      } else if (order['orderCompleted'] == true) {
+        completed++;
+      } else if (order['cancelOrder'] == false &&
+          order['orderCompleted'] == false) {
+        pending++;
+      }
+    }
+
+    setState(() {
+      pendingCount = pending;
+      completedCount = completed;
+      canceledCount = canceled;
+    });
+  }
+
   void initializeIsLoadingCFromResponse(Map<String, dynamic> response) {
     List<dynamic> orders = response['orders'] ?? [];
-    isLoadingC = {for (var order in orders) order['_id']: false};
-    isLoading = {for (var order in orders) order['_id']: false};
+    isLoadingC = {for (var order in orders) _getBookingId(order): false};
+    isLoading = {for (var order in orders) _getBookingId(order): false};
   }
 
   void updateIsLoadingForId(String id, bool value) {
@@ -114,10 +164,702 @@ class _OrdersPageState extends State<OrdersPage> {
     }
   }
 
+  // Show confirmation dialog
+  Future<bool> _showConfirmationDialog(
+    BuildContext context,
+    String title,
+    String message,
+    String confirmText,
+    Color confirmColor,
+  ) async {
+    return await showDialog<bool>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('No', style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                style: ElevatedButton.styleFrom(backgroundColor: confirmColor),
+                child: Text(
+                  confirmText,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+    ).then((value) => value ?? false);
+  }
+
+  // Cancel Order
+  Future<void> _handleCancelOrder({
+    required BuildContext context,
+    required String bookingId,
+  }) async {
+    if (bookingId.isEmpty) {
+      _showSnackBar(context, 'Booking ID is required', false);
+      return;
+    }
+
+    final confirmed = await _showConfirmationDialog(
+      context,
+      'Cancel Order',
+      'Are you sure you want to cancel this order?',
+      'Yes, Cancel',
+      Colors.red,
+    );
+
+    if (!confirmed) return;
+
+    setState(() => updateIsLoadingForIdC(bookingId, true));
+    final prefs = await SharedPreferences.getInstance();
+    final userData = prefs.getString('user');
+    final vendorData = prefs.getString('vendor');
+    final isVendorUser = vendorData != null;
+    final token =
+        "Bearer ${isVendorUser ? jsonDecode(vendorData)['token'] : jsonDecode(userData!)['token']}";
+    final userId =
+        isVendorUser
+            ? jsonDecode(vendorData)['vendorId']
+            : jsonDecode(userData!)['userId'];
+
+    try {
+      final response = await http.patch(
+        Uri.parse(
+          isVendorUser
+              ? "${KConstantURL.url}/bookings/cancelOrderV"
+              : "${KConstantURL.url}/bookings/cancelOrderU",
+        ),
+        headers: {"Content-Type": "application/json", "Authorization": token},
+        body: jsonEncode({'bookingId': bookingId}),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+
+        if (isVendorUser && vendor != null) {
+          await _updateVendorData(responseData);
+        } else if (user != null) {
+          await _updateUserData(responseData);
+        }
+
+        setState(() {
+          updateIsLoadingForIdC(bookingId, false);
+          futureCards = _fetchCards(userId, pageNo, token);
+        });
+        _showSnackBar(
+          context,
+          responseData['message'] ?? 'Order cancelled successfully',
+          true,
+        );
+      } else {
+        setState(() => updateIsLoadingForIdC(bookingId, false));
+        final error = jsonDecode(response.body);
+        _showSnackBar(
+          context,
+          error['message'] ?? 'Failed to cancel order',
+          false,
+        );
+      }
+    } catch (e) {
+      setState(() => updateIsLoadingForIdC(bookingId, false));
+      _showSnackBar(context, "Error: $e", false);
+    }
+  }
+
+  // Mark as Completed
+  Future<void> _handleMarkAsCompletedOrder({
+    required BuildContext context,
+    required String bookingId,
+  }) async {
+    if (bookingId.isEmpty) {
+      _showSnackBar(context, 'Booking ID is required', false);
+      return;
+    }
+
+    final confirmed = await _showConfirmationDialog(
+      context,
+      'Mark as Completed',
+      'Are you sure you want to mark this order as completed?',
+      'Yes, Complete',
+      Colors.green,
+    );
+
+    if (!confirmed) return;
+
+    setState(() => updateIsLoadingForId(bookingId, true));
+    final prefs = await SharedPreferences.getInstance();
+    final userData = prefs.getString('user');
+    final vendorData = prefs.getString('vendor');
+    final isVendorUser = vendorData != null;
+    final token =
+        "Bearer ${isVendorUser ? jsonDecode(vendorData)['token'] : jsonDecode(userData!)['token']}";
+    final userId =
+        isVendorUser
+            ? jsonDecode(vendorData)['vendorId']
+            : jsonDecode(userData!)['userId'];
+
+    try {
+      final response = await http.patch(
+        Uri.parse(
+          isVendorUser
+              ? "${KConstantURL.url}/bookings/orderCompletedV"
+              : "${KConstantURL.url}/bookings/orderCompletedU",
+        ),
+        headers: {"Content-Type": "application/json", "Authorization": token},
+        body: jsonEncode({'bookingId': bookingId}),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+
+        if (isVendorUser && vendor != null) {
+          await _updateVendorData(responseData);
+        } else if (user != null) {
+          await _updateUserData(responseData);
+        }
+
+        setState(() {
+          updateIsLoadingForId(bookingId, false);
+          futureCards = _fetchCards(userId, pageNo, token);
+        });
+        _showSnackBar(
+          context,
+          responseData['message'] ?? 'Order completed successfully',
+          true,
+        );
+      } else {
+        setState(() => updateIsLoadingForId(bookingId, false));
+        final error = jsonDecode(response.body);
+        _showSnackBar(
+          context,
+          error['message'] ?? 'Failed to complete order',
+          false,
+        );
+      }
+    } catch (e) {
+      setState(() => updateIsLoadingForId(bookingId, false));
+      _showSnackBar(context, "Error: $e", false);
+    }
+  }
+
+  Future<void> _updateUserData(Map<String, dynamic> responseData) async {
+    if (user == null) return;
+    final updatedUser = UserModel(
+      token: user!.token,
+      userId: user!.userId,
+      name: user!.name,
+      email: user!.email,
+      verifyEmail: user!.verifyEmail,
+      phoneNo: user!.phoneNo,
+      verifyPhoneNo: user!.verifyPhoneNo,
+      gender: user!.gender,
+      address: user!.address,
+      balance: responseData['balance'] ?? user!.balance,
+      transactionCount:
+          responseData['transactionCount'] ?? user!.transactionCount,
+      totalDiscount: responseData['totalDiscount'] ?? user!.totalDiscount,
+      totalOriginalAmount:
+          responseData['totalOriginalAmount'] ?? user!.totalOriginalAmount,
+      pending: responseData['pending'] ?? user!.pending,
+      completed: responseData['completed'] ?? user!.completed,
+      canceled: responseData['canceled'] ?? user!.canceled,
+      pincode: user!.pincode,
+      message: responseData['message'] ?? user!.message,
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user', jsonEncode(updatedUser.toJson()));
+    setState(() => user = updatedUser);
+  }
+
+  Future<void> _updateVendorData(Map<String, dynamic> responseData) async {
+    if (vendor == null) return;
+    final updatedVendor = VendorModel(
+      token: vendor!.token,
+      vendorId: vendor!.vendorId,
+      name: vendor!.name,
+      email: vendor!.email,
+      verifyEmail: vendor!.verifyEmail,
+      phoneNo: vendor!.phoneNo,
+      verifyPhoneNo: vendor!.verifyPhoneNo,
+      type: vendor!.type,
+      gender: vendor!.gender,
+      rating: vendor!.rating,
+      ratingCount: vendor!.ratingCount,
+      wageRate: vendor!.wageRate,
+      address: vendor!.address,
+      balance: responseData['balance'] ?? vendor!.balance,
+      wageRateType: vendor!.wageRateType,
+      transactionCount:
+          responseData['transactionCount'] ?? vendor!.transactionCount,
+      totalDiscount: responseData['totalDiscount'] ?? vendor!.totalDiscount,
+      totalOriginalAmount:
+          responseData['totalOriginalAmount'] ?? vendor!.totalOriginalAmount,
+      pending: responseData['pending'] ?? vendor!.pending,
+      completed: responseData['completed'] ?? vendor!.completed,
+      canceled: responseData['canceled'] ?? vendor!.canceled,
+      earning: responseData['earning'] ?? vendor!.earning,
+      pincode: vendor!.pincode,
+      message: responseData['message'] ?? vendor!.message,
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('vendor', jsonEncode(updatedVendor.toJson()));
+    setState(() => vendor = updatedVendor);
+  }
+
+  // Rating Order with Enhanced UI
+  Future<void> _handleRatingOrder({
+    required BuildContext context,
+    required String bookingId,
+  }) async {
+    // Check if already rated
+    // This will be handled in the UI
+
+    final rating = _selectedRating;
+    if (rating < 1 || rating > 5) {
+      _showSnackBar(context, 'Please select a rating between 1 and 5', false);
+      return;
+    }
+
+    setState(() => updateIsLoadingForId(bookingId, true));
+    final prefs = await SharedPreferences.getInstance();
+    final userData = prefs.getString('user');
+    final vendorData = prefs.getString('vendor');
+    final isVendorUser = vendorData != null;
+    final token =
+        "Bearer ${isVendorUser ? jsonDecode(vendorData)['token'] : jsonDecode(userData!)['token']}";
+    final userId =
+        isVendorUser
+            ? jsonDecode(vendorData)['vendorId']
+            : jsonDecode(userData!)['userId'];
+
+    try {
+      final response = await http.patch(
+        Uri.parse(
+          isVendorUser
+              ? "${KConstantURL.url}/bookings/ratingV"
+              : "${KConstantURL.url}/bookings/ratingU",
+        ),
+        headers: {"Content-Type": "application/json", "Authorization": token},
+        body: jsonEncode({
+          'bookingId': bookingId,
+          'rating': rating,
+          'review': reviewController.text.trim(),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          updateIsLoadingForId(bookingId, false);
+          futureCards = _fetchCards(userId, pageNo, token);
+          ratingOrderId = null;
+          _selectedRating = 0;
+          ratingController.clear();
+          reviewController.clear();
+        });
+        _showSnackBar(context, jsonDecode(response.body)['message'], true);
+      } else {
+        setState(() => updateIsLoadingForId(bookingId, false));
+        _showSnackBar(context, jsonDecode(response.body)['message'], false);
+      }
+    } catch (e) {
+      setState(() => updateIsLoadingForId(bookingId, false));
+      _showSnackBar(context, "Error: $e", false);
+    }
+  }
+
+  // Show Rating Dialog
+  void _showRatingDialog(
+    BuildContext context,
+    dynamic order,
+    bool isDarkTheme,
+  ) {
+    final String bookingId = _getBookingId(order);
+    final int existingRating = order['rating'] ?? 0;
+    final String existingReview = order['review'] ?? '';
+
+    // If already rated, show info
+    if (existingRating > 0) {
+      _showAlreadyRatedDialog(context, existingRating, existingReview);
+      return;
+    }
+
+    _selectedRating = 0;
+    ratingController.clear();
+    reviewController.clear();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: Column(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.purple.shade400,
+                          Colors.deepPurple.shade700,
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(8),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Share Your Experience',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white70,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        Text(
+                          'How was your booking? ✨',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          'Your feedback helps others make better decisions',
+                          style: TextStyle(fontSize: 12, color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Star Rating
+                    Container(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: List.generate(5, (index) {
+                              final starValue = index + 1;
+                              return GestureDetector(
+                                onTap: () {
+                                  setStateDialog(() {
+                                    _selectedRating = starValue;
+                                  });
+                                },
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 4),
+                                  child: Icon(
+                                    starValue <= _selectedRating
+                                        ? Icons.star
+                                        : Icons.star_border,
+                                    color: Colors.amber,
+                                    size: 40,
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            _getRatingLabel(_selectedRating),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: _getRatingColor(_selectedRating),
+                            ),
+                          ),
+                          Text(
+                            _getRatingSubtext(_selectedRating),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Review TextField
+                    TextFormField(
+                      controller: reviewController,
+                      maxLines: 3,
+                      maxLength: 500,
+                      decoration: InputDecoration(
+                        labelText: '📝 Write a Review',
+                        hintText:
+                            'What stood out to you? Share the highlights...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor:
+                            isDarkTheme ? Colors.grey[800] : Colors.grey[50],
+                        counterText: '${reviewController.text.length}/500',
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    // Suggestion chips
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildSuggestionChip('👍 Great service!', () {
+                          final current = reviewController.text;
+                          final newText =
+                              current +
+                              (current.isNotEmpty ? ' ' : '') +
+                              'Great service! 👍';
+                          reviewController.text = newText;
+                        }),
+                        _buildSuggestionChip(
+                          '😊 Professional and friendly',
+                          () {
+                            final current = reviewController.text;
+                            final newText =
+                                current +
+                                (current.isNotEmpty ? ' ' : '') +
+                                'Professional and friendly 😊';
+                            reviewController.text = newText;
+                          },
+                        ),
+                        _buildSuggestionChip('⭐ Highly recommended!', () {
+                          final current = reviewController.text;
+                          final newText =
+                              current +
+                              (current.isNotEmpty ? ' ' : '') +
+                              'Highly recommended! ⭐';
+                          reviewController.text = newText;
+                        }),
+                        _buildSuggestionChip('🔄 Will book again', () {
+                          final current = reviewController.text;
+                          final newText =
+                              current +
+                              (current.isNotEmpty ? ' ' : '') +
+                              'Will book again 🔄';
+                          reviewController.text = newText;
+                        }),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Container(
+                      padding: EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color:
+                            isDarkTheme ? Colors.grey[800] : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '💡 Your review helps the community. Be honest and constructive!',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color:
+                              isDarkTheme ? Colors.white70 : Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    _selectedRating = 0;
+                    ratingController.clear();
+                    reviewController.clear();
+                    Navigator.pop(dialogContext);
+                  },
+                  child: Text('Cancel', style: TextStyle(color: Colors.red)),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if (_selectedRating < 1 || _selectedRating > 5) {
+                      _showSnackBar(
+                        context,
+                        'Please select a rating between 1 and 5',
+                        false,
+                      );
+                      return;
+                    }
+                    Navigator.pop(dialogContext);
+                    _handleRatingOrder(context: context, bookingId: bookingId);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                  ),
+                  child: Text(
+                    '🌟 Submit Review',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSuggestionChip(String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.grey[200],
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(fontSize: 11, color: Colors.grey[700]),
+        ),
+      ),
+    );
+  }
+
+  String _getRatingLabel(int rating) {
+    switch (rating) {
+      case 1:
+        return '😔 Needs Improvement';
+      case 2:
+        return '😕 Could Be Better';
+      case 3:
+        return '😐 It Was Okay';
+      case 4:
+        return '😊 Good Experience';
+      case 5:
+        return '🌟 Excellent!';
+      default:
+        return 'Tap a star to rate';
+    }
+  }
+
+  String _getRatingSubtext(int rating) {
+    switch (rating) {
+      case 1:
+        return "We'll do better next time";
+      case 2:
+        return 'Thank you for your honesty';
+      case 3:
+        return 'Room for improvement';
+      case 4:
+        return 'Glad you enjoyed it!';
+      case 5:
+        return 'Absolutely amazing experience!';
+      default:
+        return 'Choose from 1 to 5 stars';
+    }
+  }
+
+  Color _getRatingColor(int rating) {
+    if (rating >= 4) return Colors.green;
+    if (rating >= 3) return Colors.orange;
+    if (rating > 0) return Colors.red;
+    return Colors.grey;
+  }
+
+  void _showAlreadyRatedDialog(
+    BuildContext context,
+    int rating,
+    String review,
+  ) {
+    showDialog(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: Column(
+              children: [
+                Text(
+                  '🌟 Already Rated!',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.purple,
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(5, (index) {
+                    return Icon(
+                      index < rating ? Icons.star : Icons.star_border,
+                      color: Colors.amber,
+                      size: 32,
+                    );
+                  }),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'You rated this vendor $rating/5',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                if (review.isNotEmpty) ...[
+                  SizedBox(height: 8),
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '"$review"',
+                      style: TextStyle(
+                        fontStyle: FontStyle.italic,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ),
+                ],
+                SizedBox(height: 8),
+                Text(
+                  'Thank you for your feedback! 🙏',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(
+                  '👍 Got it',
+                  style: TextStyle(color: Colors.purple),
+                ),
+              ),
+            ],
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    // final isPortrait = mediaQuery.orientation == Orientation.portrait;
 
     return ValueListenableBuilder<bool>(
       valueListenable: isDarkThemeNotifier,
@@ -230,12 +972,72 @@ class _OrdersPageState extends State<OrdersPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildOrderTab('Pending', 1, Colors.blue, isDarkTheme, mediaQuery),
-          _buildOrderTab('Completed', 2, Colors.green, isDarkTheme, mediaQuery),
-          _buildOrderTab('Canceled', 3, Colors.red, isDarkTheme, mediaQuery),
+          _buildTabWithBadge(
+            'Pending',
+            1,
+            Colors.blue,
+            pendingCount,
+            isDarkTheme,
+            mediaQuery,
+          ),
+          _buildTabWithBadge(
+            'Completed',
+            2,
+            Colors.green,
+            completedCount,
+            isDarkTheme,
+            mediaQuery,
+          ),
+          _buildTabWithBadge(
+            'Canceled',
+            3,
+            Colors.red,
+            canceledCount,
+            isDarkTheme,
+            mediaQuery,
+          ),
         ],
       ),
     );
+  }
+
+  Widget _buildTabWithBadge(
+    String text,
+    int value,
+    Color color,
+    int count,
+    bool isDarkTheme,
+    MediaQueryData mediaQuery,
+  ) {
+    return count == 0
+        ? _buildOrderTab(text, value, color, isDarkTheme, mediaQuery)
+        : Stack(
+          clipBehavior: Clip.none,
+          children: [
+            _buildOrderTab(text, value, color, isDarkTheme, mediaQuery),
+            Positioned(
+              top: -4,
+              right: -4,
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  shape: BoxShape.circle,
+                ),
+                constraints: BoxConstraints(minWidth: 20, minHeight: 20),
+                child: Text(
+                  count.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ],
+        );
   }
 
   Widget _buildOrderList(bool isDarkTheme, MediaQueryData mediaQuery) {
@@ -286,13 +1088,20 @@ class _OrdersPageState extends State<OrdersPage> {
 
         if (ordersList.isEmpty) {
           return Center(
-            child: Text(
-              _getEmptyStateMessage(),
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: mediaQuery.size.width * 0.04,
-                color: isDarkTheme ? Colors.white : Colors.black,
-              ),
+            child: Column(
+              children: [
+                SizedBox(height: 18),
+                Center(child: BannerAdWidget()),
+                SizedBox(height: 18),
+                Text(
+                  _getEmptyStateMessage(),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: mediaQuery.size.width * 0.04,
+                    color: isDarkTheme ? Colors.white : Colors.black,
+                  ),
+                ),
+              ],
             ),
           );
         }
@@ -303,11 +1112,22 @@ class _OrdersPageState extends State<OrdersPage> {
           ),
           itemCount: ordersList.length,
           itemBuilder:
-              (context, index) => _buildOrderCard(
-                context,
-                ordersList[index],
-                isDarkTheme,
-                mediaQuery,
+              (context, index) => Column(
+                children: [
+                  index % 3 == 0
+                      ? Center(child: BannerAdWidget())
+                      : const SizedBox.shrink(),
+                  index % 3 == 0
+                      ? SizedBox(height: 8)
+                      : const SizedBox.shrink(),
+                  _buildOrderCard(
+                    context,
+                    ordersList[index],
+                    isDarkTheme,
+                    mediaQuery,
+                    index,
+                  ),
+                ],
               ),
         );
       },
@@ -332,8 +1152,23 @@ class _OrdersPageState extends State<OrdersPage> {
     dynamic order,
     bool isDarkTheme,
     MediaQueryData mediaQuery,
+    int index,
   ) {
     final isSmallScreen = mediaQuery.size.width < 350;
+    final String bookingId = _getBookingId(order);
+    final bool isCancelLoading = isLoadingC[bookingId] ?? false;
+    final bool isCompleteLoading = isLoading[bookingId] ?? false;
+    final int rating = order['rating'] ?? 0;
+    final String review = order['review'] ?? '';
+
+    Color borderColor;
+    if (order['cancelOrder'] == true) {
+      borderColor = Colors.red;
+    } else if (order['orderCompleted'] == true) {
+      borderColor = Colors.green;
+    } else {
+      borderColor = Colors.blue;
+    }
 
     return Container(
       margin: EdgeInsets.only(bottom: mediaQuery.size.height * 0.015),
@@ -341,6 +1176,7 @@ class _OrdersPageState extends State<OrdersPage> {
       decoration: BoxDecoration(
         color: isDarkTheme ? Colors.black : Colors.white,
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor, width: 2),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.1),
@@ -365,8 +1201,14 @@ class _OrdersPageState extends State<OrdersPage> {
             isDarkTheme,
             isSmallScreen,
           ),
-          _buildOrderInfoRow('Date', order['date'], isDarkTheme, isSmallScreen),
+          _buildOrderInfoRow(
+            'Date',
+            DateTime.parse(order['date']).toLocal().toString().split(' ')[0],
+            isDarkTheme,
+            isSmallScreen,
+          ),
 
+          // Pending Order Actions
           if (orderDetails == 1) ...[
             SizedBox(height: mediaQuery.size.height * 0.01),
             Row(
@@ -376,8 +1218,11 @@ class _OrdersPageState extends State<OrdersPage> {
                     context,
                     'Cancel Order',
                     Colors.red,
-                    () => _showOrdersDialog(context, 'cancel', order['_id']),
-                    isLoading: isLoadingC[order['_id']] ?? false,
+                    () => _handleCancelOrder(
+                      context: context,
+                      bookingId: bookingId,
+                    ),
+                    isLoading: isCancelLoading,
                   ),
                 ),
                 SizedBox(width: mediaQuery.size.width * 0.02),
@@ -386,18 +1231,18 @@ class _OrdersPageState extends State<OrdersPage> {
                     context,
                     'Mark Completed',
                     Colors.green,
-                    () => _showOrdersDialog(
-                      context,
-                      'mark as completed',
-                      order['_id'],
+                    () => _handleMarkAsCompletedOrder(
+                      context: context,
+                      bookingId: bookingId,
                     ),
-                    isLoading: isLoading[order['_id']] ?? false,
+                    isLoading: isCompleteLoading,
                   ),
                 ),
               ],
             ),
           ],
 
+          // Completed Order Rating Section
           if (orderDetails == 2) ...[
             SizedBox(height: mediaQuery.size.height * 0.01),
             _buildRatingSection(context, order, isDarkTheme, mediaQuery),
@@ -464,13 +1309,14 @@ class _OrdersPageState extends State<OrdersPage> {
         padding: EdgeInsets.symmetric(
           vertical: MediaQuery.of(context).size.height * 0.01,
         ),
+        minimumSize: Size(double.infinity, 40),
       ),
       onPressed: isLoading ? null : onPressed,
       child:
           isLoading
               ? SizedBox(
-                width: 16,
-                height: 16,
+                width: 20,
+                height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   color: Colors.white,
@@ -493,61 +1339,86 @@ class _OrdersPageState extends State<OrdersPage> {
     bool isDarkTheme,
     MediaQueryData mediaQuery,
   ) {
-    if (order['rating'] != 0) {
-      return Text(
-        'You have rated [ ${order['rating']}/5 ]',
-        style: TextStyle(
-          color: Colors.blue,
-          fontWeight: FontWeight.bold,
-          fontSize: mediaQuery.size.width * 0.04,
-        ),
-        textAlign: TextAlign.center,
-      );
-    }
+    final String bookingId = _getBookingId(order);
+    final int rating = order['rating'] ?? 0;
+    final String review = order['review'] ?? '';
+    final bool isLoadingRating = isLoading[bookingId] ?? false;
 
-    if (ratingOrderId == order['_id']) {
+    // Already rated
+    if (rating > 0) {
       return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextFormField(
-            controller: ratingController,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: 'Rate (1 to 5)',
-              labelStyle: TextStyle(
-                color: isDarkTheme ? Colors.white : Colors.black,
+          Row(
+            children: [
+              Text(
+                'Rated',
+                style: TextStyle(
+                  color: Colors.deepOrange,
+                  fontWeight: FontWeight.bold,
+                  fontSize: mediaQuery.size.width * 0.04,
+                ),
               ),
-              border: OutlineInputBorder(),
+              const SizedBox(width: 8),
+              Text(
+                '$rating/5',
+                style: TextStyle(
+                  color: Colors.blue,
+                  fontWeight: FontWeight.bold,
+                  fontSize: mediaQuery.size.width * 0.04,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Row(
+                children: List.generate(5, (index) {
+                  return Icon(
+                    index < rating ? Icons.star : Icons.star_border,
+                    color: Colors.amber,
+                    size: mediaQuery.size.width * 0.04,
+                  );
+                }),
+              ),
+            ],
+          ),
+          if (review.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Reviewed',
+                  style: TextStyle(
+                    color: Colors.deepOrange,
+                    fontWeight: FontWeight.bold,
+                    fontSize: mediaQuery.size.width * 0.04,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    review,
+                    style: TextStyle(
+                      color: Colors.blue,
+                      fontWeight: FontWeight.bold,
+                      fontSize: mediaQuery.size.width * 0.04,
+                    ),
+                    softWrap: true,
+                  ),
+                ),
+              ],
             ),
-          ),
-          SizedBox(height: mediaQuery.size.height * 0.01),
-          _buildActionButton(
-            context,
-            'Submit Rating',
-            Colors.blue,
-            () {
-              final rating = int.tryParse(ratingController.text);
-              if (rating == null || rating < 1 || rating > 5) {
-                _showInvalidRatingDialog(context);
-                return;
-              }
-              _handleRatingOrder(context: context, bookingId: order['_id']);
-            },
-            isLoading: isLoading[order['_id']] ?? false,
-          ),
+          ],
         ],
       );
     }
 
+    // Show "Give Rating" button - opens enhanced rating dialog
     return _buildActionButton(
       context,
-      'Give Rating to Vendor',
+      'Give Rating & Review',
       Colors.blue,
-      () {
-        setState(() {
-          ratingOrderId = order['_id'];
-          ratingController.clear();
-        });
-      },
+      () => _showRatingDialog(context, order, isDarkTheme),
+      isLoading: isLoadingRating,
     );
   }
 
@@ -606,254 +1477,6 @@ class _OrdersPageState extends State<OrdersPage> {
         .join(' ');
   }
 
-  void _showOrdersDialog(BuildContext context, String orderType, String id) {
-    showDialog(
-      context: context,
-      builder:
-          (dialogContext) => AlertDialog(
-            title: Text(
-              _capitalizeWords(orderType),
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            content: Text('Are you sure you want to $orderType this order?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: Text('No'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(dialogContext).pop();
-                  orderType == 'cancel'
-                      ? _handleCancelOrder(context: context, bookingId: id)
-                      : _handleMarkAsCompletedOrder(
-                        context: context,
-                        bookingId: id,
-                      );
-                },
-                child: Text(
-                  'Yes',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-    );
-  }
-
-  void _showInvalidRatingDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder:
-          (_) => AlertDialog(
-            title: const Text("Invalid Rating"),
-            content: const Text("Please enter a rating between 1 and 5."),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("OK"),
-              ),
-            ],
-          ),
-    );
-  }
-
-  Future<void> _updateUserBonusAmount(
-    UserModel? user,
-    Map<String, dynamic> responseJson,
-  ) async {
-    if (user != null) {
-      final updatedUser = UserModel(
-        token: user.token,
-        userId: user.userId,
-        name: user.name,
-        email: user.email,
-        verifyEmail: user.verifyEmail,
-        phoneNo: user.phoneNo,
-        verifyPhoneNo: user.verifyPhoneNo,
-        gender: user.gender,
-        address: user.address,
-        balance: user.balance,
-        bonusAmount: responseJson['bonusAmount'] ?? user.bonusAmount,
-        imgURL: user.imgURL,
-        message: responseJson['message'] ?? user.message,
-      );
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user', jsonEncode(updatedUser.toJson()));
-    }
-  }
-
-  Future<void> _updateVendorBonusAmount(
-    VendorModel? vendor,
-    Map<String, dynamic> responseJson,
-  ) async {
-    if (vendor != null) {
-      final updatedVendor = VendorModel(
-        token: vendor.token,
-        vendorId: vendor.vendorId,
-        name: vendor.name,
-        email: vendor.email,
-        verifyEmail: vendor.verifyEmail,
-        phoneNo: vendor.phoneNo,
-        verifyPhoneNo: vendor.verifyPhoneNo,
-        type: vendor.type,
-        gender: vendor.gender,
-        rating: vendor.rating,
-        ratingCount: vendor.ratingCount,
-        wageRate: vendor.wageRate,
-        address: vendor.address,
-        balance: vendor.balance,
-        bonusAmount: responseJson['bonusAmount'] ?? vendor.bonusAmount,
-        imgURL: vendor.imgURL,
-        message: responseJson['message'] ?? vendor.message,
-      );
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('vendor', jsonEncode(updatedVendor.toJson()));
-    }
-  }
-
-  Future<void> _handleRatingOrder({
-    required BuildContext context,
-    required String bookingId,
-  }) async {
-    setState(() => updateIsLoadingForId(bookingId, true));
-    final prefs = await SharedPreferences.getInstance();
-    final userData = prefs.getString('user');
-    final vendorData = prefs.getString('vendor');
-    final isVendor = vendorData != null;
-    final token =
-        "Bearer ${isVendor ? jsonDecode(vendorData)['token'] : jsonDecode(userData!)['token']}";
-    final userId =
-        isVendor
-            ? jsonDecode(vendorData)['vendorId']
-            : jsonDecode(userData!)['userId'];
-
-    try {
-      final response = await http.patch(
-        Uri.parse(
-          isVendor
-              ? "${KConstantURL.url}/bookings/ratingV"
-              : "${KConstantURL.url}/bookings/ratingU",
-        ),
-        headers: {"Content-Type": "application/json", "Authorization": token},
-        body: jsonEncode({
-          'bookingId': bookingId,
-          'rating': int.parse(ratingController.text),
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          updateIsLoadingForId(bookingId, false);
-          futureCards = _fetchCards(userId, pageNo, token);
-          ratingOrderId = null;
-        });
-        _showSnackBar(context, jsonDecode(response.body)['message'], true);
-      } else {
-        setState(() => updateIsLoadingForId(bookingId, false));
-        _showSnackBar(context, jsonDecode(response.body)['message'], false);
-      }
-    } catch (e) {
-      setState(() => updateIsLoadingForId(bookingId, false));
-      _showSnackBar(context, "Error: $e", false);
-    }
-  }
-
-  Future<void> _handleMarkAsCompletedOrder({
-    required BuildContext context,
-    required String bookingId,
-  }) async {
-    setState(() => updateIsLoadingForId(bookingId, true));
-    final prefs = await SharedPreferences.getInstance();
-    final userData = prefs.getString('user');
-    final vendorData = prefs.getString('vendor');
-    final isVendor = vendorData != null;
-    final token =
-        "Bearer ${isVendor ? jsonDecode(vendorData)['token'] : jsonDecode(userData!)['token']}";
-    final userId =
-        isVendor
-            ? jsonDecode(vendorData)['vendorId']
-            : jsonDecode(userData!)['userId'];
-
-    try {
-      final response = await http.patch(
-        Uri.parse(
-          isVendor
-              ? "${KConstantURL.url}/bookings/orderCompletedV"
-              : "${KConstantURL.url}/bookings/orderCompletedU",
-        ),
-        headers: {"Content-Type": "application/json", "Authorization": token},
-        body: jsonEncode({'bookingId': bookingId}),
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          updateIsLoadingForId(bookingId, false);
-          futureCards = _fetchCards(userId, pageNo, token);
-        });
-        _showSnackBar(context, jsonDecode(response.body)['message'], true);
-      } else {
-        setState(() => updateIsLoadingForId(bookingId, false));
-        _showSnackBar(context, jsonDecode(response.body)['message'], false);
-      }
-    } catch (e) {
-      setState(() => updateIsLoadingForId(bookingId, false));
-      _showSnackBar(context, "Error: $e", false);
-    }
-  }
-
-  Future<void> _handleCancelOrder({
-    required BuildContext context,
-    required String bookingId,
-  }) async {
-    setState(() => updateIsLoadingForIdC(bookingId, true));
-    final prefs = await SharedPreferences.getInstance();
-    final userData = prefs.getString('user');
-    final vendorData = prefs.getString('vendor');
-    final isVendor = vendorData != null;
-    final token =
-        "Bearer ${isVendor ? jsonDecode(vendorData)['token'] : jsonDecode(userData!)['token']}";
-    final userId =
-        isVendor
-            ? jsonDecode(vendorData)['vendorId']
-            : jsonDecode(userData!)['userId'];
-
-    try {
-      final response = await http.patch(
-        Uri.parse(
-          isVendor
-              ? "${KConstantURL.url}/bookings/cancelOrderV"
-              : "${KConstantURL.url}/bookings/cancelOrderU",
-        ),
-        headers: {"Content-Type": "application/json", "Authorization": token},
-        body: jsonEncode({'bookingId': bookingId}),
-      );
-
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        if (isVendor) {
-          await _updateVendorBonusAmount(vendor, responseData);
-        } else {
-          await _updateUserBonusAmount(user, responseData);
-        }
-
-        setState(() {
-          updateIsLoadingForIdC(bookingId, false);
-          futureCards = _fetchCards(userId, pageNo, token);
-        });
-        _showSnackBar(context, responseData['message'], true);
-      } else {
-        setState(() => updateIsLoadingForIdC(bookingId, false));
-        _showSnackBar(context, jsonDecode(response.body)['message'], false);
-      }
-    } catch (e) {
-      setState(() => updateIsLoadingForIdC(bookingId, false));
-      _showSnackBar(context, "Error: $e", false);
-    }
-  }
-
   void _showSnackBar(BuildContext context, String message, bool isSuccess) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -861,9 +1484,13 @@ class _OrdersPageState extends State<OrdersPage> {
         content: Center(
           child: Text(
             message,
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
+        duration: const Duration(seconds: 2),
       ),
     );
   }

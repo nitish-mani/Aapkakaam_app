@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'package:app_aapkakaam/data/notifiers.dart';
+import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:share_plus/share_plus.dart';
@@ -125,6 +126,9 @@ class _SharePageState extends State<SharePage> {
                           ),
                         ),
                       ),
+
+                      SizedBox(height: mediaQuery.size.height * 0.03),
+                      Center(child: BannerAdWidget()),
                     ],
                   ),
                 ),

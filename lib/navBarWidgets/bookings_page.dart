@@ -3,12 +3,14 @@ import 'dart:convert';
 import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:app_aapkakaam/models/data_model.dart';
+import 'package:app_aapkakaam/models/card_model.dart';
+import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:app_aapkakaam/widgets/firebase_notification.dart';
 
 class BookingsPage extends StatefulWidget {
   const BookingsPage({super.key});
@@ -19,14 +21,15 @@ class BookingsPage extends StatefulWidget {
 
 class _BookingsPageState extends State<BookingsPage> {
   // State variables
-  Future<List<dynamic>>? futureCards;
+  Future<List<BookingsCard>>? futureCards;
   int bookingsDetails = bookingStatusNotifier.value;
   VendorModel? vendor;
   DateTime selectedDate = DateTime.now();
-  late Map<dynamic, bool> isLoading;
-  late Map<dynamic, bool> isPermissionGranted;
+  late Map<String, bool> isLoading;
+  late Map<String, bool> isPermissionGranted;
   final ScrollController _scrollController = ScrollController();
-  // double _calendarHeight = 300.h;
+  VoidCallback? _refreshListener;
+  StreamSubscription<Map<String, dynamic>>? _notificationSubscription;
 
   // Counters
   int newMessageCountPending = 0;
@@ -41,16 +44,60 @@ class _BookingsPageState extends State<BookingsPage> {
     isPermissionGranted = {};
     _setupRefreshListener();
     loadUserData();
+
+    _notificationSubscription = FirebaseNotifications.notificationClickStream
+        .listen((data) {
+          _handleNotificationClick(data);
+        });
+  }
+
+  void _handleNotificationClick(Map<String, dynamic> data) {
+    print('Notification clicked with data: $data');
+
+    final type = data['type'];
+
+    switch (type) {
+      case 'booking':
+        selectedPageNotifier.value = isVendor.value ? 1 : 2;
+        bookingStatusNotifier.value = 1;
+        if (isVendor.value) {
+          monthNotifier.value = int.parse(data['month']) + 1;
+          yearNotifier.value = int.parse(data['year']);
+        }
+        break;
+
+      case 'cancelled':
+        selectedPageNotifier.value = isVendor.value ? 1 : 2;
+        bookingStatusNotifier.value = 3;
+        if (isVendor.value) {
+          monthNotifier.value = int.parse(data['month']) + 1;
+          yearNotifier.value = int.parse(data['year']);
+        }
+        break;
+
+      case 'profile_update':
+        profileRefreshNotifier.value = !profileRefreshNotifier.value;
+        break;
+
+      default:
+        if (data['screen'] == 'profile') {
+          // Handle profile navigation
+        }
+    }
   }
 
   @override
   void dispose() {
-    bookingsRefreshNotifier.removeListener(_setupRefreshListener);
+    if (_refreshListener != null) {
+      bookingsRefreshNotifier.removeListener(_refreshListener!);
+    }
+    _notificationSubscription?.cancel();
+    _scrollController.dispose();
     super.dispose();
   }
 
   void _setupRefreshListener() {
-    bookingsRefreshNotifier.addListener(() {
+    _refreshListener = () {
       if (mounted) {
         setState(() {
           if (monthNotifier.value != 0 || yearNotifier.value != 0) {
@@ -59,7 +106,8 @@ class _BookingsPageState extends State<BookingsPage> {
         });
         loadUserData();
       }
-    });
+    };
+    bookingsRefreshNotifier.addListener(_refreshListener!);
   }
 
   // Helper methods
@@ -70,33 +118,29 @@ class _BookingsPageState extends State<BookingsPage> {
     bookingIdNotifier.value = {...bookingIdNotifier.value, id: value};
   }
 
-  void initializeIsLoadingFromResponse(List<dynamic> response) {
-    final bookings = response;
-    isPermissionGranted = {
-      for (var booking in bookings)
-        booking['booking']['bookingId']?.toString() ?? '': false,
-    };
+  void initializeIsLoadingFromResponse(List<BookingsCard> bookings) {
+    // Filter out bookings with empty IDs
+    final validBookings = bookings.where((b) => b.id.isNotEmpty).toList();
 
-    isLoading = {
-      for (var booking in bookings)
-        booking['booking']['bookingId']?.toString() ?? '': false,
+    isPermissionGranted = {
+      for (var booking in validBookings) booking.id: false,
     };
+    isLoading = {for (var booking in validBookings) booking.id: false};
 
     final updatedBookingIds = {...bookingIdNotifier.value};
-    for (final booking in bookings) {
-      final bookingId = booking['booking']['bookingId']?.toString() ?? '';
-      if (bookingId.isEmpty) {
-        updatedBookingIds[bookingId] = false;
-      }
+    for (final booking in validBookings) {
+      updatedBookingIds[booking.id] = false;
     }
     bookingIdNotifier.value = updatedBookingIds;
 
-    setState(() {
-      final bookingCategories = calculateBookingCategories(response);
-      newMessageCountPending = bookingCategories['pending']!;
-      newMessageCountComplete = bookingCategories['completed']!;
-      newMessageCountCanceled = bookingCategories['canceled']!;
-    });
+    if (mounted) {
+      setState(() {
+        final bookingCategories = calculateBookingCategories(validBookings);
+        newMessageCountPending = bookingCategories['pending']!;
+        newMessageCountComplete = bookingCategories['completed']!;
+        newMessageCountCanceled = bookingCategories['canceled']!;
+      });
+    }
   }
 
   void updateLoadingState(String id, bool value) {
@@ -108,86 +152,6 @@ class _BookingsPageState extends State<BookingsPage> {
   void updatePermissionState(String id, bool value) {
     if (isPermissionGranted.containsKey(id)) {
       isPermissionGranted[id] = value;
-    }
-  }
-
-  // API calls
-  Future<void> handleGrantPermission({
-    required BuildContext context,
-    required String bookingId,
-    required String token,
-  }) async {
-    setState(() {
-      isLoading[bookingId] = true;
-    });
-    try {
-      final url = Uri.parse("${KConstantURL.url}/bookings/ratingPermission");
-      final response = await http.patch(
-        url,
-        headers: {
-          "Authorization": "Bearer $token",
-          "Content-Type": "application/json",
-        },
-        body: jsonEncode({"bookingId": bookingId}),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          isPermissionGranted[bookingId] = true;
-          isLoading[bookingId] = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.green,
-            content: Center(
-              child: Text(
-                data['message'],
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14.sp,
-                ),
-              ),
-            ),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      } else {
-        final error = jsonDecode(response.body);
-        setState(() {
-          isLoading[bookingId] = false;
-        });
-        throw Exception(error['message'] ?? "Something went wrong");
-      }
-    } catch (e) {
-      setState(() {
-        isLoading[bookingId] = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Error: $e", style: TextStyle(fontSize: 14.sp)),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-
-  Future<void> grantPermission(String bookingId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final vendorData = prefs.getString('vendor');
-
-    updateLoadingState(bookingId, true);
-    if (vendorData != null) {
-      final decodedVendor = jsonDecode(vendorData);
-      vendor = VendorModel.fromJson(decodedVendor);
-      setState(() {
-        handleGrantPermission(
-          context: context,
-          bookingId: bookingId,
-          token: decodedVendor['token'],
-        );
-      });
     }
   }
 
@@ -227,7 +191,7 @@ class _BookingsPageState extends State<BookingsPage> {
     }
   }
 
-  Future<List<dynamic>> fetchBookings(
+  Future<List<BookingsCard>> fetchBookings(
     String userId,
     int month,
     int year,
@@ -242,16 +206,89 @@ class _BookingsPageState extends State<BookingsPage> {
 
       if (response.statusCode == 200) {
         final decodedResponse = json.decode(response.body);
-        initializeIsLoadingFromResponse(decodedResponse);
+        print(decodedResponse);
+        List<BookingsCard> bookings = [];
 
-        return decodedResponse is List
-            ? decodedResponse
-            : (decodedResponse is Map && decodedResponse.containsKey('data'))
-            ? decodedResponse['data'] ?? []
-            : [];
+        // Helper to safely convert dynamic map to Map<String, dynamic>
+        Map<String, dynamic> toSafeMap(dynamic value) {
+          if (value == null) return {};
+          if (value is Map<String, dynamic>) return value;
+          if (value is Map<dynamic, dynamic>) {
+            return Map<String, dynamic>.from(value);
+          }
+          return {};
+        }
+
+        if (decodedResponse is List) {
+          for (var item in decodedResponse) {
+            try {
+              Map<String, dynamic> safeItem = toSafeMap(item);
+
+              // The item itself is the booking data
+              Map<String, dynamic> bookingData = safeItem;
+
+              // Print for debugging
+              print(
+                'Processing booking: ${bookingData['_id']} - orderCompleted: ${bookingData['orderCompleted']}',
+              );
+
+              final booking = BookingsCard.fromJson(bookingData);
+              bookings.add(booking);
+            } catch (e) {
+              print('Error parsing booking: $e');
+              print('Problematic item: $item');
+              continue;
+            }
+          }
+        } else if (decodedResponse is Map &&
+            decodedResponse.containsKey('data')) {
+          final dataList = decodedResponse['data'] as List? ?? [];
+          for (var item in dataList) {
+            try {
+              Map<String, dynamic> safeItem = toSafeMap(item);
+
+              // Check if the booking has the 'booking' field or is the booking itself
+              Map<String, dynamic> bookingData;
+              if (safeItem.containsKey('booking')) {
+                bookingData = toSafeMap(safeItem['booking']);
+              } else {
+                bookingData = safeItem;
+              }
+
+              print(
+                'Processing booking: ${bookingData['_id']} - orderCompleted: ${bookingData['orderCompleted']}',
+              );
+
+              final booking = BookingsCard.fromJson(bookingData);
+              bookings.add(booking);
+            } catch (e) {
+              print('Error parsing booking: $e');
+              print('Problematic item: $item');
+              continue;
+            }
+          }
+        } else {
+          print('Unexpected response format: $decodedResponse');
+        }
+
+        print('Bookings loaded: ${bookings.length}');
+
+        // Debug: Print booking statuses
+        for (var booking in bookings) {
+          print(
+            'Booking ${booking.id}: cancelOrder=${booking.cancelOrder}, orderCompleted=${booking.orderCompleted}',
+          );
+        }
+
+        initializeIsLoadingFromResponse(bookings);
+        return bookings;
+      } else {
+        debugPrint('fetchBookings failed with status: ${response.statusCode}');
+        debugPrint('fetchBookings response body: ${response.body}');
+        throw Exception('Failed to fetch bookings: ${response.statusCode}');
       }
-      return [];
     } catch (e) {
+      debugPrint('fetchBookings error: $e');
       return [];
     }
   }
@@ -273,7 +310,7 @@ class _BookingsPageState extends State<BookingsPage> {
                   child: Scaffold(
                     body: NestedScrollView(
                       controller: _scrollController,
-                      physics: ClampingScrollPhysics(),
+                      physics: const ClampingScrollPhysics(),
                       headerSliverBuilder:
                           (context, innerBoxIsScrolled) => [
                             SliverAppBar(
@@ -283,13 +320,8 @@ class _BookingsPageState extends State<BookingsPage> {
                               stretch: true,
                               primary: false,
                               expandedHeight: 328.h,
-                              collapsedHeight:
-                                  kToolbarHeight +
-                                  8.h, // Minimum required height
-                              elevation:
-                                  0, // optional: remove shadow when floating in
-                              // automaticallyImplyLeading:
-                              //     false, // optional if you don't want back button
+                              collapsedHeight: kToolbarHeight + 8.h,
+                              elevation: 0,
                               backgroundColor:
                                   isDarkTheme ? Colors.teal : Colors.amber,
                               flexibleSpace: LayoutBuilder(
@@ -339,7 +371,6 @@ class _BookingsPageState extends State<BookingsPage> {
                                         8.w,
                                         0,
                                       ),
-
                                       color:
                                           isDarkTheme
                                               ? Colors.teal
@@ -351,7 +382,6 @@ class _BookingsPageState extends State<BookingsPage> {
                               ),
                             ),
                           ],
-
                       body: _buildBookingsListSection(isDarkTheme),
                     ),
                   ),
@@ -366,11 +396,10 @@ class _BookingsPageState extends State<BookingsPage> {
 
   Widget _buildBookingsListSection(bool isDarkTheme) {
     return Container(
-      // padding: EdgeInsets.(8.w),
       decoration: BoxDecoration(
         color: isDarkTheme ? Colors.teal : Colors.amber,
       ),
-      child: FutureBuilder<List<dynamic>>(
+      child: FutureBuilder<List<BookingsCard>>(
         future: futureCards,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -383,22 +412,56 @@ class _BookingsPageState extends State<BookingsPage> {
           }
 
           if (snapshot.hasError || !snapshot.hasData) {
-            return Center(child: Icon(Icons.error_outline, size: 40.sp));
-          }
-
-          final bookingsList = _filterBookingsByStatus(snapshot.data ?? []);
-
-          if (bookingsList.isEmpty) {
             return Center(
-              child: Text(
-                _getEmptyStateMessage(),
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.sp),
-                textAlign: TextAlign.center,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 40.sp, color: Colors.red),
+                  SizedBox(height: 10.h),
+                  Text(
+                    'Failed to load bookings',
+                    style: TextStyle(
+                      fontSize: 14.sp,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
+                  SizedBox(height: 5.h),
+                  Text(
+                    snapshot.error?.toString() ?? 'Unknown error',
+                    style: TextStyle(fontSize: 12.sp),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
             );
           }
 
-          // PROPERLY SCROLLABLE LIST
+          final bookingsList = _filterBookingsByStatus(snapshot.data ?? []);
+          print(
+            'Filtered bookings for status $bookingsDetails: ${bookingsList.length}',
+          );
+
+          if (bookingsList.isEmpty) {
+            return Center(
+              child: Column(
+                children: [
+                  SizedBox(height: 18),
+                  const Center(child: BannerAdWidget()),
+                  SizedBox(height: 18),
+                  Text(
+                    _getEmptyStateMessage(),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14.sp,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            );
+          }
+
           return Container(
             padding: EdgeInsets.all(8.w),
             decoration: BoxDecoration(
@@ -408,9 +471,14 @@ class _BookingsPageState extends State<BookingsPage> {
               itemCount: bookingsList.length,
               separatorBuilder: (context, index) => SizedBox(height: 5.h),
               itemBuilder: (context, index) {
-                return _buildBookingCard(
-                  bookingsList[index]['booking'],
-                  isDarkTheme,
+                return Column(
+                  children: [
+                    if (index % 3 == 0) ...[
+                      const Center(child: BannerAdWidget()),
+                      SizedBox(height: 8),
+                    ],
+                    _buildBookingCard(bookingsList[index], isDarkTheme),
+                  ],
                 );
               },
             ),
@@ -451,13 +519,20 @@ class _BookingsPageState extends State<BookingsPage> {
   }
 
   Widget _buildCalendarSection(bool isDarkTheme) {
-    return FutureBuilder<List<dynamic>>(
+    return FutureBuilder<List<BookingsCard>>(
       future: futureCards,
       builder: (context, snapshot) {
         final bookedDates =
             snapshot.hasData
                 ? _extractBookedDatesByStatus(snapshot.data!, bookingsDetails)
                 : <DateTime>{};
+
+        // Get today's date
+        final today = DateTime.now();
+        final todayDate = DateTime(today.year, today.month, today.day);
+
+        // Check if there's a booking today
+        final hasBookingToday = bookedDates.any((d) => isSameDay(d, todayDate));
 
         return Container(
           decoration: BoxDecoration(
@@ -501,6 +576,12 @@ class _BookingsPageState extends State<BookingsPage> {
             calendarBuilders: CalendarBuilders(
               defaultBuilder: (context, date, focusedDay) {
                 final hasBooking = bookedDates.any((d) => isSameDay(d, date));
+                final isToday = isSameDay(date, todayDate);
+
+                // If it's today, let the todayBuilder handle it
+                if (isToday) {
+                  return null;
+                }
 
                 return Stack(
                   children: [
@@ -562,22 +643,94 @@ class _BookingsPageState extends State<BookingsPage> {
                   ],
                 );
               },
+              todayBuilder: (context, date, focusedDay) {
+                final hasBooking = bookedDates.any((d) => isSameDay(d, date));
+
+                return Stack(
+                  children: [
+                    Container(
+                      margin: EdgeInsets.all(2.w),
+                      decoration: BoxDecoration(
+                        // Always purple for today
+                        color: Colors.purple,
+                        shape: BoxShape.circle,
+                        // If booking exists, add colored border
+                        border:
+                            hasBooking
+                                ? Border.all(
+                                  color: _getTodayBorderColor(bookingsDetails),
+                                  width: 3.w,
+                                )
+                                : null,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '${date.day}',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14.sp,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    if (hasBooking &&
+                        (bookingCountBySameDate['${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}'] ??
+                                0) >
+                            1)
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: Container(
+                          padding: EdgeInsets.all(2.w),
+                          constraints: BoxConstraints(
+                            minWidth: 16.w,
+                            minHeight: 16.h,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                bookingsDetails == 3
+                                    ? Colors.red
+                                    : bookingsDetails == 2
+                                    ? Colors.green
+                                    : Colors.blue,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isDarkTheme ? Colors.black : Colors.white,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${bookingCountBySameDate['${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}']}',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 8.sp,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
               markerBuilder: (context, date, events) {
                 final hasBooking = bookedDates.any((d) => isSameDay(d, date));
-                if (!hasBooking) return SizedBox.shrink();
+                if (!hasBooking) return const SizedBox.shrink();
 
                 final matchingBookings =
-                    snapshot.data!.where((booking) {
-                      final b = booking['booking'];
+                    snapshot.data?.where((booking) {
+                      if (booking.bookingDate == null) return false;
                       final bookingDate = DateTime(
-                        b['year'],
-                        b['month'] + 1,
-                        b['date'],
+                        booking.bookingDate!.year,
+                        booking.bookingDate!.month,
+                        booking.bookingDate!.day,
                       );
                       return isSameDay(bookingDate, date);
-                    }).toList();
+                    }).toList() ??
+                    [];
 
-                if (matchingBookings.isEmpty) return SizedBox.shrink();
+                if (matchingBookings.isEmpty) return const SizedBox.shrink();
 
                 final bookingForMarker = matchingBookings.first;
 
@@ -587,12 +740,10 @@ class _BookingsPageState extends State<BookingsPage> {
                     width: 12.w,
                     height: 12.h,
                     decoration: BoxDecoration(
-                      color: _getDateMarkerColor(bookingForMarker['booking']),
+                      color: _getDateMarkerColor(bookingForMarker),
                       border:
                           (matchingBookings.isNotEmpty &&
-                                  _getDateMarkerColor(
-                                        bookingForMarker['booking'],
-                                      ) !=
+                                  _getDateMarkerColor(bookingForMarker) !=
                                       Colors.transparent)
                               ? Border.all(
                                 color:
@@ -612,12 +763,14 @@ class _BookingsPageState extends State<BookingsPage> {
                 monthNotifier.value = focusedDay.month;
                 yearNotifier.value = focusedDay.year;
 
-                futureCards = fetchBookings(
-                  vendor!.vendorId,
-                  focusedDay.month - 1,
-                  focusedDay.year,
-                  'Bearer ${vendor!.token}',
-                );
+                if (vendor != null) {
+                  futureCards = fetchBookings(
+                    vendor!.vendorId,
+                    focusedDay.month - 1,
+                    focusedDay.year,
+                    'Bearer ${vendor!.token}',
+                  );
+                }
               });
             },
           ),
@@ -626,31 +779,48 @@ class _BookingsPageState extends State<BookingsPage> {
     );
   }
 
+  Color _getTodayBorderColor(int status) {
+    switch (status) {
+      case 1:
+        return Colors.blue;
+      case 2:
+        return Colors.green;
+      case 3:
+        return Colors.red;
+      default:
+        return Colors.orange;
+    }
+  }
+
   Set<DateTime> _extractBookedDatesByStatus(
-    List<dynamic> bookings,
+    List<BookingsCard> bookings,
     int status,
   ) {
     bookingCountBySameDate.clear();
     final dates = <DateTime>{};
 
     for (final booking in bookings) {
-      final b = booking['booking'];
       try {
-        final date = DateTime(b['year'], b['month'] + 1, b['date']);
+        // Skip if bookingDate is null
+        if (booking.bookingDate == null) {
+          continue;
+        }
+
+        final date = DateTime(
+          booking.bookingDate!.year,
+          booking.bookingDate!.month,
+          booking.bookingDate!.day,
+        );
         final dateKey =
             '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
-        final isPending = !b['cancelOrder'] && !b['orderCompleted'];
-        final isCompleted = b['orderCompleted'];
-        final isCanceled = b['cancelOrder'];
-
         bool shouldInclude = false;
 
-        if (status == 1 && isPending) {
+        if (status == 1 && !booking.cancelOrder && !booking.orderCompleted) {
           shouldInclude = true;
-        } else if (status == 2 && isCompleted) {
+        } else if (status == 2 && booking.orderCompleted) {
           shouldInclude = true;
-        } else if (status == 3 && isCanceled) {
+        } else if (status == 3 && booking.cancelOrder) {
           shouldInclude = true;
         }
 
@@ -681,8 +851,8 @@ class _BookingsPageState extends State<BookingsPage> {
         : Colors.red.withOpacity(0.3);
   }
 
-  Color _getDateMarkerColor(bookings) {
-    final hasNewMessage = getBookingStatus(bookings['bookingId']) == true;
+  Color _getDateMarkerColor(BookingsCard booking) {
+    final hasNewMessage = getBookingStatus(booking.id) == true;
     final status =
         bookingsDetails == 1
             ? 'pending'
@@ -690,9 +860,7 @@ class _BookingsPageState extends State<BookingsPage> {
             ? 'completed'
             : 'canceled';
 
-    if ((status == 'pending') && hasNewMessage) {
-      return Colors.green;
-    } else if ((status == 'canceled') && hasNewMessage) {
+    if ((status == 'pending' || status == 'canceled') && hasNewMessage) {
       return Colors.green;
     }
     return Colors.transparent;
@@ -754,7 +922,7 @@ class _BookingsPageState extends State<BookingsPage> {
               child: Container(
                 padding: EdgeInsets.all(4.w),
                 decoration: BoxDecoration(
-                  color: Colors.green,
+                  color: Colors.pink,
                   shape: BoxShape.circle,
                 ),
                 constraints: BoxConstraints(minWidth: 20.w, minHeight: 20.h),
@@ -773,38 +941,42 @@ class _BookingsPageState extends State<BookingsPage> {
         );
   }
 
-  Map<String, int> calculateBookingCategories(List<dynamic> bookingsList) {
+  Map<String, int> calculateBookingCategories(List<BookingsCard> bookingsList) {
     int pending = 0;
     int completed = 0;
     int canceled = 0;
 
-    for (var element in bookingsList) {
-      final booking = element['booking'];
-      final bookingStatus = getBookingStatus(booking['bookingId']);
-      if (booking['cancelOrder'] == true && bookingStatus == true) {
+    for (var booking in bookingsList) {
+      // Skip if booking ID is empty
+      if (booking.id.isEmpty) continue;
+
+      // Count based on actual booking status - FIXED: removed bookingStatus check
+      if (booking.cancelOrder == true) {
         canceled++;
-      } else if (booking['orderCompleted'] == true && bookingStatus == true) {
+      } else if (booking.orderCompleted == true) {
         completed++;
-      } else if (booking['cancelOrder'] == false &&
-          booking['orderCompleted'] == false &&
-          bookingStatus == true) {
+      } else if (booking.cancelOrder == false &&
+          booking.orderCompleted == false) {
         pending++;
       }
     }
+
+    print(
+      'Categories - Pending: $pending, Completed: $completed, Canceled: $canceled',
+    );
     return {'pending': pending, 'completed': completed, 'canceled': canceled};
   }
 
-  List<dynamic> _filterBookingsByStatus(List<dynamic> bookings) {
-    return bookings.where((element) {
-      final booking = element['booking'];
+  List<BookingsCard> _filterBookingsByStatus(List<BookingsCard> bookings) {
+    return bookings.where((booking) {
       switch (bookingsDetails) {
         case 1:
-          return booking['cancelOrder'] == false &&
-              booking['orderCompleted'] == false;
+          return booking.cancelOrder == false &&
+              booking.orderCompleted == false;
         case 2:
-          return booking['orderCompleted'] == true;
+          return booking.orderCompleted == true;
         case 3:
-          return booking['cancelOrder'] == true;
+          return booking.cancelOrder == true;
         default:
           return true;
       }
@@ -845,16 +1017,34 @@ class _BookingsPageState extends State<BookingsPage> {
     return count;
   }
 
-  Widget _buildBookingCard(Map<String, dynamic> booking, bool isDarkTheme) {
-    final rating = booking['rating'] ?? 0;
-    final isCompleted = booking['orderCompleted'] == true;
-    final isCancelled = booking['cancelOrder'] == true;
-    final hasNewMessage = getBookingStatus(booking['bookingId']) == true;
+  Widget _buildBookingCard(BookingsCard booking, bool isDarkTheme) {
+    final rating = booking.rating;
+    final review = booking.review;
+    final isCompleted = booking.orderCompleted;
+    final isCancelled = booking.cancelOrder;
+    final hasNewMessage = getBookingStatus(booking.id) == true;
+
+    // Extract address from the first address object
+    final address =
+        booking.bookedById.address.isNotEmpty
+            ? booking.bookedById.address.first
+            : null;
+
+    final village = address?.vill ?? '';
+    final post = address?.post ?? '';
+    final district = address?.dist ?? '';
+
+    // Format date safely
+    String formattedDate = 'Date not available';
+    if (booking.bookingDate != null) {
+      formattedDate =
+          "${booking.bookingDate!.day}/${booking.bookingDate!.month}/${booking.bookingDate!.year}";
+    }
 
     return InkWell(
       onTap: () {
-        if (booking['bookingId'] != null && hasNewMessage) {
-          upsertBooking(booking['bookingId'], false);
+        if (booking.id.isNotEmpty && hasNewMessage) {
+          upsertBooking(booking.id, false);
           bookingCountNotifier.value = calculateNewNotificationCount(
             bookingIdNotifier.value,
           );
@@ -881,38 +1071,23 @@ class _BookingsPageState extends State<BookingsPage> {
                   color: Colors.green,
                 ),
               ),
-            _buildInfoRow('Name', booking['name'], booking['bookingId']),
+            _buildInfoRow('Name', booking.bookedById.name, booking.id),
             _buildInfoRow(
               'Mobile',
-              booking['phoneNo'].toString(),
-              booking['bookingId'],
+              booking.bookedById.phoneNo.toString(),
+              booking.id,
             ),
-            _buildInfoRow(
-              'Village',
-              booking['address']['vill'],
-              booking['bookingId'],
-            ),
-            _buildInfoRow(
-              'Post Office',
-              booking['address']['post'],
-              booking['bookingId'],
-            ),
-            _buildInfoRow(
-              'District',
-              booking['address']['dist'],
-              booking['bookingId'],
-            ),
-            _buildInfoRow(
-              'Date',
-              "${booking['date']}/${booking['month'] + 1}/${booking['year']}",
-              booking['bookingId'],
-              isColored: true,
-            ),
+            _buildInfoRow('Village', village, booking.id),
+            _buildInfoRow('Post Office', post, booking.id),
+            _buildInfoRow('District', district, booking.id),
+            _buildInfoRow('Date', formattedDate, booking.id, isColored: true),
             if (bookingsDetails == 2)
-              _buildInfoRow(
-                'Rating',
-                _formatRating(rating),
-                booking['bookingId'],
+              Column(
+                children: [
+                  _buildInfoRow('Rating', _formatRating(rating), booking.id),
+
+                  _buildInfoRow('Review', _formatReview(review), booking.id),
+                ],
               ),
             _buildInfoRow(
               'Status',
@@ -921,7 +1096,7 @@ class _BookingsPageState extends State<BookingsPage> {
                   : isCancelled
                   ? "Canceled"
                   : "Pending",
-              booking['bookingId'],
+              booking.id,
               isColored: true,
               color: _getStatusColor(),
             ),
@@ -931,10 +1106,16 @@ class _BookingsPageState extends State<BookingsPage> {
     );
   }
 
-  String _formatRating(dynamic rating) {
-    if (rating == null || rating == 0) return 'Not Rated';
-    final numericRating = rating is int ? rating : rating;
-    return '${(numericRating)}/5';
+  String _formatRating(int rating) {
+    if (rating == 0) return 'Not Rated';
+    return '$rating/5';
+  }
+
+  String _formatReview(String? review) {
+    if (review == null || review.trim().isEmpty) {
+      return 'Not Reviewed';
+    }
+    return review;
   }
 
   Color _getStatusColor() {
@@ -970,64 +1151,14 @@ class _BookingsPageState extends State<BookingsPage> {
               color: isColored ? color : null,
             ),
           ),
-          if (label == 'Rating' && value == 'Not Rated')
-            _buildRatingAction(bookingId)
-          else
-            Text(
-              capitalizeWords(value),
-              style: TextStyle(
-                fontSize: 12.sp,
-                color: isColored ? color : null,
-              ),
-            ),
+
+          Text(
+            capitalizeWords(value),
+            style: TextStyle(fontSize: 12.sp, color: isColored ? color : null),
+          ),
         ],
       ),
     );
-  }
-
-  Widget _buildRatingAction(String? bookingId) {
-    return Row(
-      children: [
-        Text('Not Rated', style: TextStyle(fontSize: 12.sp)),
-        if (isBefore5PM(selectedDate) &&
-            !isLoading[bookingId]! &&
-            !isPermissionGranted[bookingId]!)
-          InkWell(
-            onTap: () => grantPermission(bookingId!),
-            child: Padding(
-              padding: EdgeInsets.only(left: 8.w),
-              child: Text(
-                "Grant Permission",
-                style: TextStyle(
-                  color: Colors.blue,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12.sp,
-                ),
-              ),
-            ),
-          )
-        else if (isLoading[bookingId]!)
-          Padding(
-            padding: EdgeInsets.only(left: 8.w),
-            child: SizedBox(
-              width: 15.w,
-              height: 15.h,
-              child: CircularProgressIndicator(strokeWidth: 3),
-            ),
-          ),
-      ],
-    );
-  }
-
-  bool isBefore5PM(DateTime selectedDate) {
-    final fivePM = DateTime(
-      selectedDate.year,
-      selectedDate.month,
-      selectedDate.day,
-      17,
-      0,
-    );
-    return DateTime.now().isBefore(fivePM);
   }
 
   Widget _buildOrderTab(String text, int value, Color color, bool isDarkTheme) {

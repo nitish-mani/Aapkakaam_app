@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:app_aapkakaam/models/data_model.dart';
+import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -274,6 +275,7 @@ class _ImageUploaderState extends State<ImageUploader> {
                   color: Colors.green,
                   width: screenWidth,
                 ),
+
               SizedBox(height: screenWidth * 0.05),
               CircleAvatar(
                 radius: avatarRadius,
@@ -306,6 +308,9 @@ class _ImageUploaderState extends State<ImageUploader> {
                 width: screenWidth * 0.6,
                 isLoading: imgLoading,
               ),
+              SizedBox(height: screenWidth * 0.05),
+
+              Center(child: BannerAdWidget()),
             ],
           ),
         ),
@@ -333,7 +338,7 @@ class _ImageUploaderState extends State<ImageUploader> {
       wageRate: vendor.wageRate,
       address: vendor.address,
       balance: vendor.balance,
-      bonusAmount: vendor.bonusAmount,
+      wageRateType: vendor.wageRateType,
       imgURL: updatedImgUrl,
       message: responseJson['message'] ?? vendor.message,
     );
@@ -358,7 +363,6 @@ class _ImageUploaderState extends State<ImageUploader> {
       gender: user.gender,
       address: user.address,
       balance: user.balance,
-      bonusAmount: user.bonusAmount,
       imgURL: updatedImgUrl,
       message: responseJson['message'] ?? user.message,
     );

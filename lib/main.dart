@@ -5,19 +5,31 @@ import 'package:app_aapkakaam/widgets/firebase_notification.dart';
 import 'package:app_aapkakaam/widgets/version_checker.dart';
 import 'package:app_aapkakaam/widgets/welcome_page.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart'; // <-- Added
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+
+// ✅ ADD THIS BACKGROUND HANDLER
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  FirebaseNotifications.setNotificationCount(message.data);
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await MobileAds.instance.initialize();
   await Firebase.initializeApp();
-  await FirebaseNotifications.initialize(); // Initialize Firebase
+
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  // await FirebaseNotifications.initialize();
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
-      systemNavigationBarColor: Colors.white30, // Change navigation bar color
-      systemNavigationBarIconBrightness: Brightness.dark, // Change icon color
+      systemNavigationBarColor: Colors.white30,
+      systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]).then((
@@ -39,7 +51,6 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     themeMode();
-    FirebaseNotifications.initialize(); // Initialize FCM here
   }
 
   void themeMode() async {
@@ -55,10 +66,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return ScreenUtilInit(
-      designSize: const Size(
-        375,
-        812,
-      ), // <-- iPhone 11 reference size (or your Figma design size)
+      designSize: const Size(375, 812),
       minTextAdapt: true,
       splitScreenMode: true,
       builder: (context, child) {

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:app_aapkakaam/models/data_model.dart';
+import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -262,13 +263,20 @@ class _ViewShareState extends State<ViewShare> {
 
         if (shareList.isEmpty) {
           return Center(
-            child: Text(
-              _getEmptyStateMessage(),
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: mediaQuery.size.width * 0.04,
-                color: isDarkTheme ? Colors.white : Colors.black,
-              ),
+            child: Column(
+              children: [
+                SizedBox(height: 18),
+                Center(child: BannerAdWidget()),
+                SizedBox(height: 18),
+                Text(
+                  _getEmptyStateMessage(),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: mediaQuery.size.width * 0.04,
+                    color: isDarkTheme ? Colors.white : Colors.black,
+                  ),
+                ),
+              ],
             ),
           );
         }
@@ -279,11 +287,19 @@ class _ViewShareState extends State<ViewShare> {
           ),
           itemCount: shareList.length,
           itemBuilder:
-              (context, index) => _buildShareCard(
-                context,
-                shareList[index],
-                isDarkTheme,
-                mediaQuery,
+              (context, index) => Column(
+                children: [
+                  index % 5 == 0
+                      ? Center(child: BannerAdWidget())
+                      : SizedBox.shrink(),
+                  index % 5 == 0 ? SizedBox(height: 8) : SizedBox.shrink(),
+                  _buildShareCard(
+                    context,
+                    shareList[index],
+                    isDarkTheme,
+                    mediaQuery,
+                  ),
+                ],
               ),
         );
       },

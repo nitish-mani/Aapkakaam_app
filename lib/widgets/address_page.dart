@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:app_aapkakaam/models/data_model.dart';
+import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -46,32 +47,63 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
     });
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final isVendor1 = isVendor.value;
+      final category = isVendor1 ? 'vendor' : 'user';
+      final categoryData = prefs.getString(category);
+
+      if (categoryData == null) {
+        setState(() => _errorMessage = 'User data not found');
+        return;
+      }
+
+      final decoded = jsonDecode(categoryData);
       final response = await http
-          .get(Uri.parse('https://api.postalpincode.in/pincode/$pincode'))
+          .post(
+            Uri.parse(
+              '${KConstantURL.url}/pincode/${category == 'user' ? 'getU' : 'getV'}',
+            ),
+            headers: {
+              "Authorization": 'Bearer ${decoded['token']}',
+              "Content-Type": "application/json",
+            },
+            body: jsonEncode({'pincode': pincode}),
+          )
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data[0]['Status'] == 'Success') {
-          final postOfficeList = data[0]['PostOffice'];
-          setState(() {
-            _districtController.text = postOfficeList[0]['District'] ?? '';
-            _stateController.text = postOfficeList[0]['State'] ?? '';
-            _postOffices = List<String>.from(
-              postOfficeList.map((po) => po['Name'] as String),
-            );
-            _selectedPost = _postOffices.isNotEmpty ? _postOffices.first : null;
-          });
-        } else {
-          setState(() {
-            _errorMessage = 'Invalid pincode';
-            _districtController.clear();
-            _stateController.clear();
-            _postOffices.clear();
-          });
-        }
+        final result = jsonDecode(response.body)['data'];
+        print(result);
+        final offices = result['offices'] ?? [];
+
+        final cleanedOffices = List<Map<String, dynamic>>.from(
+          offices.map((office) {
+            final name =
+                office['officename']
+                    ?.replaceAll(RegExp(r'\s(BO|SO|HO)$'), '')
+                    ?.toUpperCase();
+            return {'Name': name, 'original': office};
+          }),
+        );
+
+        final allOffices = [
+          {'Name': 'Select Post Office'},
+          ...cleanedOffices,
+        ];
+
+        setState(() {
+          _districtController.text = offices[0]?['district'] ?? '';
+          _stateController.text = offices[0]?['statename'] ?? '';
+          _postOffices = allOffices.map((e) => e['Name'] as String).toList();
+          _selectedPost = _postOffices.isNotEmpty ? _postOffices.first : null;
+        });
       } else {
-        setState(() => _errorMessage = 'Failed to fetch address');
+        setState(() {
+          _errorMessage = 'Enter Valid Pincode';
+          _districtController.clear();
+          _stateController.clear();
+          _postOffices.clear();
+        });
       }
     } catch (e) {
       setState(() => _errorMessage = 'Network error: ${e.toString()}');
@@ -164,6 +196,9 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
     Map<String, dynamic> result,
   ) async {
     final vendor = VendorModel.fromJson(decoded);
+    final updatedAddress =
+        (result['address'] as List).map((e) => Address.fromJson(e)).toList();
+
     final updatedVendor = VendorModel(
       token: vendor.token,
       vendorId: vendor.vendorId,
@@ -177,13 +212,20 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
       rating: vendor.rating,
       ratingCount: vendor.ratingCount,
       wageRate: vendor.wageRate,
-      address:
-          (result['address'] as List).map((e) => Address.fromJson(e)).toList(),
+      address: updatedAddress, // ✅ Updated address
       balance: vendor.balance,
-      bonusAmount: vendor.bonusAmount,
-      imgURL: vendor.imgURL,
-      message: result['message'] ?? vendor.message,
+      wageRateType: vendor.wageRateType,
+      transactionCount: vendor.transactionCount,
+      totalDiscount: vendor.totalDiscount,
+      totalOriginalAmount: vendor.totalOriginalAmount,
+      pending: vendor.pending,
+      completed: vendor.completed,
+      canceled: vendor.canceled,
+      pincode: vendor.pincode,
+      earning: vendor.earning,
+      message: result['message'] ?? vendor.message, // ✅ Updated message
     );
+
     await prefs.setString('vendor', jsonEncode(updatedVendor.toJson()));
   }
 
@@ -193,6 +235,9 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
     Map<String, dynamic> result,
   ) async {
     final user = UserModel.fromJson(decoded);
+    final updatedAddress =
+        (result['address'] as List).map((e) => Address.fromJson(e)).toList();
+
     final updatedUser = UserModel(
       token: user.token,
       userId: user.userId,
@@ -202,13 +247,18 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
       phoneNo: user.phoneNo,
       verifyPhoneNo: user.verifyPhoneNo,
       gender: user.gender,
-      address:
-          (result['address'] as List).map((e) => Address.fromJson(e)).toList(),
+      address: updatedAddress, // ✅ Updated address
       balance: user.balance,
-      bonusAmount: user.bonusAmount,
-      imgURL: user.imgURL,
-      message: result['message'] ?? user.message,
+      transactionCount: user.transactionCount,
+      totalDiscount: user.totalDiscount,
+      totalOriginalAmount: user.totalOriginalAmount,
+      pending: user.pending,
+      completed: user.completed,
+      canceled: user.canceled,
+      pincode: user.pincode,
+      message: result['message'] ?? user.message, // ✅ Updated message
     );
+
     await prefs.setString('user', jsonEncode(updatedUser.toJson()));
   }
 
@@ -285,6 +335,9 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
               ),
               SizedBox(height: mediaQuery.size.height * 0.03),
               _buildActionButtons(context, mediaQuery),
+              SizedBox(height: mediaQuery.size.height * 0.03),
+
+              Center(child: BannerAdWidget()),
             ],
           ),
         ),

@@ -32,3 +32,5 @@ final ValueNotifier<bool> profileRefreshNotifier = ValueNotifier<bool>(false);
 
 ValueNotifier<int> monthNotifier = ValueNotifier<int>(0);
 ValueNotifier<int> yearNotifier = ValueNotifier<int>(0);
+
+ValueNotifier<String> otpId1 = ValueNotifier<String>("");

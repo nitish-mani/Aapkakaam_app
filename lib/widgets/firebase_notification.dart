@@ -17,13 +17,21 @@ class FirebaseNotifications {
   static bool _handlersInitialized = false;
   static bool _isNotificationClick = false;
 
-  static Future<void> initialize() async {
-    if (_handlersInitialized) return;
+  static final StreamController<Map<String, dynamic>>
+  _notificationClickStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
+
+  static Stream<Map<String, dynamic>> get notificationClickStream =>
+      _notificationClickStreamController.stream;
+
+  static Future<bool> initialize() async {
+    if (_handlersInitialized) return false;
     _handlersInitialized = true;
+    bool isPermissionGranted = false;
 
     try {
       await _initializeNotifications();
-      await _setupPermissionsAndToken();
+      isPermissionGranted = await _setupPermissionsAndToken();
       await _setupMessageHandlers();
 
       // Setup periodic cleanup every 2 minutes
@@ -36,6 +44,8 @@ class FirebaseNotifications {
     } catch (e) {
       print('Error initializing Firebase Notifications: $e');
     }
+
+    return isPermissionGranted;
   }
 
   static Future<void> _initializeNotifications() async {
@@ -64,7 +74,7 @@ class FirebaseNotifications {
       onDidReceiveNotificationResponse: (NotificationResponse response) {
         _isNotificationClick = true;
         if (response.payload != null) {
-          _handleNotificationData(jsonDecode(response.payload!));
+          _notificationClickStreamController.add(jsonDecode(response.payload!));
         }
         // Reset flag after handling
         Future.delayed(const Duration(milliseconds: 500), () {
@@ -74,7 +84,7 @@ class FirebaseNotifications {
     );
   }
 
-  static Future<void> _setupPermissionsAndToken() async {
+  static Future<bool> _setupPermissionsAndToken() async {
     final settings = await _firebaseMessaging.requestPermission(
       alert: true,
       badge: true,
@@ -88,7 +98,9 @@ class FirebaseNotifications {
         fcmToken.value = token;
         print('FCM Token: $token');
       }
+      return true;
     }
+    return false;
   }
 
   static Future<void> _setupMessageHandlers() async {
@@ -117,8 +129,7 @@ class FirebaseNotifications {
     // Handle when app is opened from notification
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       _isNotificationClick = true;
-      _handleNotificationData(message.data);
-      // Reset flag after handling
+      _notificationClickStreamController.add(message.data);
       Future.delayed(const Duration(milliseconds: 500), () {
         _isNotificationClick = false;
       });
@@ -156,8 +167,9 @@ class FirebaseNotifications {
   }
 
   static void _updateUIForBooking(Map<String, dynamic> data) {
-    if (!_isNotificationClick)
+    if (!_isNotificationClick) {
       return; // Only navigate if notification was clicked
+    }
 
     // final id = data['id']?.toString() ?? '';
     if (isVendor.value) {
@@ -172,8 +184,9 @@ class FirebaseNotifications {
   }
 
   static void _updateUIForCancellation(Map<String, dynamic> data) {
-    if (!_isNotificationClick)
+    if (!_isNotificationClick) {
       return; // Only navigate if notification was clicked
+    }
 
     // final id = data['id']?.toString() ?? '';
     if (isVendor.value) {

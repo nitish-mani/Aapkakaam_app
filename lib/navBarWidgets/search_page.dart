@@ -1,5 +1,6 @@
 // this file is made responsive for all devices.
 
+import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:app_aapkakaam/widgets/booking_date_selection.dart';
 import 'package:flutter/material.dart';
 
@@ -152,7 +153,15 @@ class _SearchPageState extends State<SearchPage> {
       padding: EdgeInsets.only(top: mediaQuery.size.height * 0.01),
       itemCount: _filteredItems.length,
       itemBuilder: (context, index) {
-        return _buildListItem(context, _filteredItems[index], mediaQuery);
+        return Column(
+          children: [
+            index % 7 == 0
+                ? Center(child: BannerAdWidget())
+                : SizedBox.shrink(),
+            index % 7 == 0 ? SizedBox(height: 8) : SizedBox.shrink(),
+            _buildListItem(context, _filteredItems[index], mediaQuery),
+          ],
+        );
       },
     );
   }

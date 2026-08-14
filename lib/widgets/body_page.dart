@@ -3,10 +3,346 @@
 import 'dart:convert';
 import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:app_aapkakaam/models/data_model.dart';
+import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:app_aapkakaam/widgets/custom_card_page.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+
+// Service Data Structure
+class ServiceItem {
+  final String title;
+  final String hindi;
+  final String image;
+  final String jobType;
+
+  ServiceItem({
+    required this.title,
+    required this.hindi,
+    required this.image,
+    required this.jobType,
+  });
+
+  Map<String, String> toMap() {
+    return {'title': title, 'hindi': hindi, 'image': image, 'jobType': jobType};
+  }
+}
+
+class ServiceCategory {
+  final String heading;
+  final String headingHindi;
+  final List<ServiceItem> services;
+
+  ServiceCategory({
+    required this.heading,
+    required this.headingHindi,
+    required this.services,
+  });
+}
+
+// Service Data
+final List<ServiceCategory> serviceData = [
+  ServiceCategory(
+    heading: "Construction & Work",
+    headingHindi: "निर्माण कार्य",
+    services: [
+      ServiceItem(
+        title: "Labour",
+        hindi: "मजदूर",
+        image: "assets/images/labour.png",
+        jobType: "labour",
+      ),
+      ServiceItem(
+        title: "Mason",
+        hindi: "राजमिस्त्री",
+        image: "assets/images/mason.jpg",
+        jobType: "mason",
+      ),
+      ServiceItem(
+        title: "Electrician",
+        hindi: "बिजली मिस्त्री",
+        image: "assets/images/electrician.jpg",
+        jobType: "electrician",
+      ),
+      ServiceItem(
+        title: "Plumber",
+        hindi: "प्लंबर",
+        image: "assets/images/plumber.jpg",
+        jobType: "plumber",
+      ),
+      ServiceItem(
+        title: "Painter",
+        hindi: "पेंटर",
+        image: "assets/images/painter.jpg",
+        jobType: "painter",
+      ),
+      ServiceItem(
+        title: "Carpenter",
+        hindi: "बढ़ई",
+        image: "assets/images/carpenter.jpg",
+        jobType: "carpenter",
+      ),
+      ServiceItem(
+        title: "Tiles Fitter",
+        hindi: "टाइल मिस्त्री",
+        image: "assets/images/tile_fitter.jpg",
+        jobType: "tiles fitter",
+      ),
+      ServiceItem(
+        title: "Marble Fitter",
+        hindi: "मार्बल मिस्त्री",
+        image: "assets/images/marble_fitter.jpg",
+        jobType: "marble fitter",
+      ),
+      ServiceItem(
+        title: "Shuttering",
+        hindi: "शटरिंग बुकिंग",
+        image: "assets/images/shuttering.jpg",
+        jobType: "shuttering",
+      ),
+    ],
+  ),
+  ServiceCategory(
+    heading: "Repair",
+    headingHindi: "मरम्मत सेवा",
+    services: [
+      ServiceItem(
+        title: "AC Mechanic",
+        hindi: "एसी मिस्त्री",
+        image: "assets/images/ac_mechanic.jpg",
+        jobType: "ac mechanic",
+      ),
+      ServiceItem(
+        title: "Fridge Mechanic",
+        hindi: "फ्रिज मिस्त्री",
+        image: "assets/images/fridge_mechanic.jpg",
+        jobType: "fridge mechanic",
+      ),
+      ServiceItem(
+        title: "Bike Repair",
+        hindi: "बाइक रिपेयर",
+        image: "assets/images/bike_repaire.jpg",
+        jobType: "bike repaire",
+      ),
+      ServiceItem(
+        title: "Car Repair",
+        hindi: "कार रिपेयर",
+        image: "assets/images/car_repaire.jpg",
+        jobType: "car repaire",
+      ),
+      ServiceItem(
+        title: "Laptop Repair",
+        hindi: "लैपटॉप रिपेयर",
+        image: "assets/images/laptop_repaire.jpg",
+        jobType: "laptop repaire",
+      ),
+    ],
+  ),
+  ServiceCategory(
+    heading: "Daily Need",
+    headingHindi: "दैनिक आवश्यकता",
+    services: [
+      ServiceItem(
+        title: "Driver",
+        hindi: "ड्राइवर",
+        image: "assets/images/driver.jpg",
+        jobType: "driver",
+      ),
+      ServiceItem(
+        title: "Home Tutor",
+        hindi: "होम ट्यूटर",
+        image: "assets/images/home_tutor.jpg",
+        jobType: "home tutor",
+      ),
+      ServiceItem(
+        title: "Milk Man",
+        hindi: "दूध वाला",
+        image: "assets/images/milk_man.jpg",
+        jobType: "milk man",
+      ),
+      ServiceItem(
+        title: "Washer Man",
+        hindi: "धोबी",
+        image: "assets/images/washer_man.jpg",
+        jobType: "washer man",
+      ),
+    ],
+  ),
+  ServiceCategory(
+    heading: "Function",
+    headingHindi: "कार्यक्रम सेवा",
+    services: [
+      ServiceItem(
+        title: "Parlour",
+        hindi: "पार्लर",
+        image: "assets/images/parlour.jpg",
+        jobType: "parlour",
+      ),
+      ServiceItem(
+        title: "Mehandi Maker",
+        hindi: "मेहंदी कलाकार",
+        image: "assets/images/mehandi_maker.jpg",
+        jobType: "menhandi maker",
+      ),
+      ServiceItem(
+        title: "Pandit Ji",
+        hindi: "पंडित जी",
+        image: "assets/images/pandit.jpg",
+        jobType: "pundit ji",
+      ),
+      ServiceItem(
+        title: "Cook",
+        hindi: "रसोइया",
+        image: "assets/images/cook.jpg",
+        jobType: "cook",
+      ),
+      ServiceItem(
+        title: "Lights",
+        hindi: "लाइट बुकिंग",
+        image: "assets/images/lights_booking.jpg",
+        jobType: "lights",
+      ),
+      ServiceItem(
+        title: "Tent House",
+        hindi: "टेंट हाउस",
+        image: "assets/images/tent.jpg",
+        jobType: "tent house",
+      ),
+      ServiceItem(
+        title: "Kirtan Mandali",
+        hindi: "कीर्तन मंडली",
+        image: "assets/images/kirtan_mandali.jpg",
+        jobType: "kirtan mandli",
+      ),
+      ServiceItem(
+        title: "Generator",
+        hindi: "जनरेटर",
+        image: "assets/images/generator.jpg",
+        jobType: "generator",
+      ),
+      ServiceItem(
+        title: "DJ",
+        hindi: "डीजे",
+        image: "assets/images/dj.jpg",
+        jobType: "dj",
+      ),
+      ServiceItem(
+        title: "Waiter",
+        hindi: "वेटर",
+        image: "assets/images/waiters.jpg",
+        jobType: "waiter",
+      ),
+      ServiceItem(
+        title: "RO",
+        hindi: "आरओ पानी",
+        image: "assets/images/ro.jpg",
+        jobType: "ro",
+      ),
+      ServiceItem(
+        title: "Chaat",
+        hindi: "चाट",
+        image: "assets/images/chaat.jpg",
+        jobType: "chaat",
+      ),
+      ServiceItem(
+        title: "Dulha Rath",
+        hindi: "दूल्हा रथ",
+        image: "assets/images/dulha_rath.jpg",
+        jobType: "dulha rath",
+      ),
+      ServiceItem(
+        title: "Paan Wala",
+        hindi: "पान वाला",
+        image: "assets/images/paan_wala.jpg",
+        jobType: "paan wala",
+      ),
+      ServiceItem(
+        title: "Fruits Seller",
+        hindi: "फल विक्रेता",
+        image: "assets/images/fruits_seller.jpg",
+        jobType: "fruit seller",
+      ),
+      ServiceItem(
+        title: "Marriage Hall",
+        hindi: "मैरिज हॉल",
+        image: "assets/images/marriage_hall.jpg",
+        jobType: "marriage hall",
+      ),
+    ],
+  ),
+  ServiceCategory(
+    heading: "Transportation",
+    headingHindi: "परिवहन सेवा",
+    services: [
+      ServiceItem(
+        title: "Four Wheeler",
+        hindi: "चार पहिया",
+        image: "assets/images/car.jpg",
+        jobType: "four wheeler",
+      ),
+      ServiceItem(
+        title: "Bus",
+        hindi: "बस",
+        image: "assets/images/bus.jpg",
+        jobType: "bus",
+      ),
+      ServiceItem(
+        title: "Auto",
+        hindi: "ऑटो",
+        image: "assets/images/auto.jpg",
+        jobType: "auto",
+      ),
+      ServiceItem(
+        title: "E-Rikshaw",
+        hindi: "ई-रिक्शा",
+        image: "assets/images/e-rikshaw.jpg",
+        jobType: "e-riksha",
+      ),
+      ServiceItem(
+        title: "Mini Truck",
+        hindi: "मिनी ट्रक",
+        image: "assets/images/mini_truck.jpg",
+        jobType: "mini truck",
+      ),
+    ],
+  ),
+  ServiceCategory(
+    heading: "Rural Work",
+    headingHindi: "ग्रामीण सेवाएँ",
+    services: [
+      ServiceItem(
+        title: "Dhankutti",
+        hindi: "धान कुट्टी",
+        image: "assets/images/dhankutti.jpg",
+        jobType: "dhankutti",
+      ),
+      ServiceItem(
+        title: "Aata Chakki",
+        hindi: "आटा चक्की",
+        image: "assets/images/aata_chakki.jpg",
+        jobType: "aata chakki",
+      ),
+      ServiceItem(
+        title: "Latrine Tank Cleaner",
+        hindi: "शौचालय टैंक सफाई",
+        image: "assets/images/latrine_tank_cleaner.jpg",
+        jobType: "latrine tank cleaner",
+      ),
+      ServiceItem(
+        title: "Pual Cutter",
+        hindi: "पुआल कटर",
+        image: "assets/images/pual_cutter.jpg",
+        jobType: "pual cutter",
+      ),
+      ServiceItem(
+        title: "Bhoonsa Pual Seller",
+        hindi: "भूसा विक्रेता",
+        image: "assets/images/bhoonsa_pual_wala.jpg",
+        jobType: "bhoonsa pual seller",
+      ),
+    ],
+  ),
+];
 
 class BodyPage extends StatefulWidget {
   const BodyPage({super.key});
@@ -15,112 +351,13 @@ class BodyPage extends StatefulWidget {
   State<BodyPage> createState() => _BodyPageState();
 }
 
-class _BodyPageState extends State<BodyPage> {
+class _BodyPageState extends State<BodyPage>
+    with AutomaticKeepAliveClientMixin {
   UserModel? user;
   VendorModel? vendor;
 
-  final List<List<Map<String, String>>> allServiceCategories = [
-    [
-      {'image': 'assets/images/labour.jpg', 'title': 'Labour'},
-      {'image': 'assets/images/mason.jpg', 'title': 'Mason'},
-      {'image': 'assets/images/electrician.jpg', 'title': 'Electrician'},
-      {'image': 'assets/images/plumber.jpg', 'title': 'Plumber'},
-    ],
-    [
-      {'image': 'assets/images/ac_mechanic.jpg', 'title': 'AC Mechanic'},
-      {
-        'image': 'assets/images/fridge_mechanic.jpg',
-        'title': 'Fridge Mechanic',
-      },
-      {'image': 'assets/images/driver.jpg', 'title': 'Driver'},
-      {'image': 'assets/images/home_tutor.jpg', 'title': 'Home Tutor'},
-    ],
-    [
-      {'image': 'assets/images/milk_man.jpg', 'title': 'Milk Man'},
-      {'image': 'assets/images/parlour.jpg', 'title': 'Parlour'},
-      {'image': 'assets/images/mehandi_maker.jpg', 'title': 'Mehandi Maker'},
-      {'image': 'assets/images/pandit.jpg', 'title': 'Pandit Ji'},
-    ],
-    // Continue with all other categories...
-    [
-      {'image': 'assets/images/carpenter.jpg', 'title': 'Carpenter'},
-      {'image': 'assets/images/laptop_repaire.jpg', 'title': 'Laptop Repair'},
-      {'image': 'assets/images/washer_man.jpg', 'title': 'Washer Man'},
-      {'image': 'assets/images/cook.jpg', 'title': 'Cook'},
-    ],
-    [
-      {'image': 'assets/images/painter.jpg', 'title': 'Painter'},
-      {'image': 'assets/images/bike_repaire.jpg', 'title': 'Bike Repair'},
-      {'image': 'assets/images/car_repaire.jpg', 'title': 'Car Repair'},
-      {'image': 'assets/images/tile_fitter.jpg', 'title': 'Tile Fitter'},
-    ],
-    [
-      {'image': 'assets/images/car.jpg', 'title': 'Four Wheeler Booking'},
-      {'image': 'assets/images/lights_booking.jpg', 'title': 'Lights Booking'},
-      {'image': 'assets/images/tent.jpg', 'title': 'Tent House Booking'},
-      {'image': 'assets/images/bus.jpg', 'title': 'Bus Booking'},
-    ],
-    [
-      {'image': 'assets/images/auto.jpg', 'title': 'Auto Booking'},
-      {'image': 'assets/images/generator.jpg', 'title': 'Generator Booking'},
-      {'image': 'assets/images/dj.jpg', 'title': 'DJ Booking'},
-      {'image': 'assets/images/dhankutti.jpg', 'title': 'Dhankutti Booking'},
-    ],
-    [
-      {'image': 'assets/images/aata_chakki.jpg', 'title': 'Aata Chakki'},
-      {
-        'image': 'assets/images/latrine_tank_cleaner.jpg',
-        'title': 'Latrine Tank Cleaner',
-      },
-      {
-        'image': 'assets/images/marriage_hall.jpg',
-        'title': 'Marriage Hall Booking',
-      },
-      {'image': 'assets/images/shuttering.jpg', 'title': 'Shuttering Booking'},
-    ],
-    [
-      {'image': 'assets/images/waiters.jpg', 'title': 'Waiters Booking'},
-      {'image': 'assets/images/marble_fitter.jpg', 'title': 'Marble Worker'},
-      {'image': 'assets/images/e-rikshaw.jpg', 'title': 'E-Rikshaw Booking'},
-      {
-        'image': 'assets/images/pual_cutter.jpg',
-        'title': 'Pual Cutter Booking',
-      },
-    ],
-    [
-      {'image': 'assets/images/ro.jpg', 'title': 'RO Water Booking'},
-      {'image': 'assets/images/chaat.jpg', 'title': 'Chaat Booking'},
-      {'image': 'assets/images/dulha_rath.jpg', 'title': 'Dulha Rath Booking'},
-      {
-        'image': 'assets/images/kirtan_mandali.jpg',
-        'title': 'Kirtan Mandali Booking',
-      },
-    ],
-    [
-      {'image': 'assets/images/mini_truck.jpg', 'title': 'Mini Truck Booking'},
-      {'image': 'assets/images/paan_wala.jpg', 'title': 'Paan Wala'},
-      {'image': 'assets/images/fruits_seller.jpg', 'title': 'Fruits Seller'},
-      {
-        'image': 'assets/images/bhoonsa_pual_wala.jpg',
-        'title': 'Bhoonsa Pual Seller',
-      },
-    ],
-  ];
-
-  // Category headings
-  final List<String> categoryHeadings = [
-    "Find & Book Trusted Local Services",
-    "Book Your Service in Just a Few Clicks!",
-    "Your One-Stop Solution for Daily Needs!",
-    "Book Your Service in Just a Few Clicks!",
-    "Hire Skilled Professionals & Book Essential Services",
-    "Services at Your Fingertips",
-    "The Smart Way to Hire Local Services!",
-    "Reliable Help, Right Around the Corner!",
-    "Hassle-Free Service Booking, Anytime!",
-    "Trusted Professionals for Every Job!",
-    "Quick, Reliable, and Affordable Services!",
-  ];
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -132,25 +369,23 @@ class _BodyPageState extends State<BodyPage> {
     final prefs = await SharedPreferences.getInstance();
 
     final userData = prefs.getString('user');
-    if (userData != null) {
-      setState(() {
+    final vendorData = prefs.getString('vendor');
+    setState(() {
+      if (userData != null) {
         user = UserModel.fromJson(jsonDecode(userData));
         isAddressAvailable.value = user?.address.isNotEmpty == true;
-      });
-    }
-
-    final vendorData = prefs.getString('vendor');
-    if (vendorData != null) {
-      setState(() {
+      }
+      if (vendorData != null) {
         vendor = VendorModel.fromJson(jsonDecode(vendorData));
         isWageRateAvailable.value = vendor?.wageRate != null;
         isAddressAvailable.value = vendor?.address.isNotEmpty == true;
-      });
-    }
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return MultiNotifierBuilder(
       notifiers: [
         isDarkThemeNotifier,
@@ -171,13 +406,14 @@ class _BodyPageState extends State<BodyPage> {
               children: [
                 _buildWarningMessages(isVendor, isWageRate, isAddress),
                 ...List.generate(
-                  allServiceCategories.length,
+                  serviceData.length,
                   (index) => _buildCategorySection(
-                    categoryHeadings[index],
-                    allServiceCategories[index],
+                    serviceData[index],
                     isDarkTheme,
+                    index,
                   ),
                 ),
+                SizedBox(height: 16.h),
               ],
             ),
           ),
@@ -240,17 +476,47 @@ class _BodyPageState extends State<BodyPage> {
   }
 
   Widget _buildCategorySection(
-    String heading,
-    List<Map<String, String>> imageData,
+    ServiceCategory category,
     bool isDarkTheme,
+    int index,
   ) {
+    // Convert ServiceItem to Map<String, String> for CustomCardPage
+    final List<Map<String, String>> imageData =
+        category.services
+            .map(
+              (service) => {
+                'image': service.image,
+                'title': service.title,
+                'hindi': service.hindi,
+                'jobType': service.jobType,
+              },
+            )
+            .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (index % 2 == 0) Center(child: BannerAdWidget()),
+        if (index % 2 == 0) SizedBox(height: 8.h),
         Center(
           child: Text(
-            heading,
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16.sp),
+            category.heading,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16.sp,
+              color: isDarkTheme ? Colors.white : Colors.black,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        SizedBox(height: 4.h),
+        Center(
+          child: Text(
+            category.headingHindi,
+            style: TextStyle(
+              fontSize: 12.sp,
+              color: isDarkTheme ? Colors.grey[400] : Colors.grey[600],
+            ),
             textAlign: TextAlign.center,
           ),
         ),
@@ -262,13 +528,13 @@ class _BodyPageState extends State<BodyPage> {
           cardSecondChildColor: isDarkTheme ? Colors.black : Colors.white,
           isDarkTheme: isDarkTheme,
         ),
-        SizedBox(height: 8.h),
+        SizedBox(height: 16.h),
       ],
     );
   }
 }
 
-// Same MultiNotifierBuilder — unchanged
+// MultiNotifierBuilder - unchanged
 class MultiNotifierBuilder extends StatelessWidget {
   final List<ValueNotifier> notifiers;
   final Widget Function(BuildContext, List<dynamic>, Widget?) builder;

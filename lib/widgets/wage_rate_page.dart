@@ -26,7 +26,7 @@ class WageRatePage extends StatelessWidget {
   Future<void> _showWageRateDialog(BuildContext context) async {
     final wageRateController = TextEditingController();
     bool isLoading = false;
-
+    String? selectedWageRateType;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -56,7 +56,11 @@ class WageRatePage extends StatelessWidget {
                 final decoded = jsonDecode(vendorJson);
                 final token = decoded["token"];
                 final vendorId = decoded["vendorId"];
-
+                if (selectedWageRateType == null) {
+                  _showErrorSnackbar(context, "Please select wage rate type");
+                  setState(() => isLoading = false);
+                  return;
+                }
                 final url = Uri.parse("${KConstantURL.url}/vendor/wageRate");
 
                 final response = await http.patch(
@@ -65,8 +69,10 @@ class WageRatePage extends StatelessWidget {
                     "Authorization": "Bearer $token",
                     "Content-Type": "application/json",
                   },
+
                   body: jsonEncode({
                     "wageRate": int.parse(wageRateText),
+                    "wageRateType": selectedWageRateType,
                     "vendorId": vendorId,
                   }),
                 );
@@ -119,21 +125,51 @@ class WageRatePage extends StatelessWidget {
               ),
               content: SizedBox(
                 width: screenWidth * 0.8,
-                child: TextField(
-                  controller: wageRateController,
-                  keyboardType: TextInputType.number,
-                  style: TextStyle(fontSize: screenWidth * 0.04),
-                  decoration: InputDecoration(
-                    labelText: "Enter new wage rate",
-                    labelStyle: TextStyle(fontSize: screenWidth * 0.04),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: wageRateController,
+                      keyboardType: TextInputType.number,
+                      style: TextStyle(fontSize: screenWidth * 0.04),
+                      decoration: InputDecoration(
+                        labelText: "Enter Wage Rate",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
+
+                    const SizedBox(height: 16),
+
+                    DropdownButtonFormField<String>(
+                      value: selectedWageRateType,
+                      decoration: InputDecoration(
+                        labelText: "Wage Rate Type",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: "Day", child: Text("Day")),
+                        DropdownMenuItem(value: "Hour", child: Text("Hour")),
+                        DropdownMenuItem(value: "Km", child: Text("Km")),
+                        DropdownMenuItem(
+                          value: "1k People",
+                          child: Text("1k People"),
+                        ),
+                        DropdownMenuItem(
+                          value: "Service",
+                          child: Text("Service"),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          selectedWageRateType = value;
+                        });
+                      },
                     ),
-                  ),
+                  ],
                 ),
               ),
               actionsAlignment: MainAxisAlignment.spaceEvenly,
@@ -199,7 +235,8 @@ class WageRatePage extends StatelessWidget {
     VendorModel vendor,
     Map<String, dynamic> responseJson,
   ) async {
-    int updatedWageRate = (responseJson['wageRate'] as num).toInt();
+    double updatedWageRate = (responseJson['wageRate'] as double).toDouble();
+    String updatedWageRateType = (responseJson['wageRateType']);
 
     VendorModel updatedVendor = VendorModel(
       token: vendor.token,
@@ -216,7 +253,7 @@ class WageRatePage extends StatelessWidget {
       wageRate: updatedWageRate,
       address: vendor.address,
       balance: vendor.balance,
-      bonusAmount: vendor.bonusAmount,
+      wageRateType: updatedWageRateType,
       imgURL: vendor.imgURL,
       message: responseJson['message'] ?? vendor.message,
     );

@@ -62,8 +62,6 @@ class _WalletPageState extends State<WalletPage> {
           valueListenable: isVendor,
           builder: (context, isVendor, _) {
             final balance = isVendor ? _vendor?.balance : _user?.balance;
-            final bonusAmount =
-                isVendor ? _vendor?.bonusAmount : _user?.bonusAmount;
             final bgColor = isDarkTheme ? Colors.teal[800] : Colors.amber[200];
             final textColor = isDarkTheme ? Colors.white : Colors.black;
 
@@ -91,20 +89,13 @@ class _WalletPageState extends State<WalletPage> {
                           padding: EdgeInsets.all(mediaQuery.size.width * 0.05),
                           child: Column(
                             children: [
-                              SizedBox(height: mediaQuery.size.height * 0.02),
                               WalletCard(
                                 label: "Balance",
                                 amount: "₹ ${balance ?? 0}",
                                 isDark: isDarkTheme,
                                 mediaQuery: mediaQuery,
                               ),
-                              SizedBox(height: mediaQuery.size.height * 0.03),
-                              WalletCard(
-                                label: "Bonus Amount",
-                                amount: "₹ ${bonusAmount ?? 0}",
-                                isDark: isDarkTheme,
-                                mediaQuery: mediaQuery,
-                              ),
+
                               SizedBox(height: mediaQuery.size.height * 0.05),
                               _buildActionButton(
                                 context,
@@ -116,28 +107,12 @@ class _WalletPageState extends State<WalletPage> {
                                 () => Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const PaymentPage(),
+                                    builder: (context) => PaymentPage(),
                                   ),
                                 ),
                                 mediaQuery,
                               ),
                               SizedBox(height: mediaQuery.size.height * 0.03),
-                              _buildActionButton(
-                                context,
-                                "Share to Get Bonus",
-                                Icons.card_giftcard,
-                                isDarkTheme
-                                    ? Colors.teal[400]
-                                    : Colors.orangeAccent[400],
-                                () => Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const HomePage(),
-                                  ),
-                                  (route) => false,
-                                ),
-                                mediaQuery,
-                              ),
                             ],
                           ),
                         ),

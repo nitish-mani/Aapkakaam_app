@@ -1,9 +1,11 @@
 // this file is made responsive for all devices and screen sizes.
 
 import 'dart:io';
+import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:app_aapkakaam/models/data_model.dart';
 import 'package:app_aapkakaam/widgets/address_page.dart';
+import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:app_aapkakaam/widgets/create_booking.dart';
 import 'package:app_aapkakaam/widgets/image_uploader.dart';
 import 'package:app_aapkakaam/widgets/payment_page.dart';
@@ -29,6 +31,7 @@ class _ProfilePageState extends State<ProfilePage> {
   UserModel? user;
   VendorModel? vendor;
   bool _isLoading = true;
+  bool _isLoading1 = false;
 
   @override
   void initState() {
@@ -139,23 +142,89 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _logout() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
+    setState(() {
+      _isLoading1 = true;
+    });
 
-      // Reset UI state
+    final prefs = await SharedPreferences.getInstance();
+
+    try {
+      print("Logout started...");
+      final isVendor1 = isVendor.value;
+      final category = isVendor1 ? 'vendor' : 'user';
+      final categoryData = prefs.getString(category);
+
+      if (categoryData == null) {
+        print("categoryData is null — aborting logout");
+        setState(() {
+          _isLoading1 = false;
+        });
+        if (mounted) {
+          print("No user data found. Please login again.");
+        }
+        return;
+      }
+
+      final decoded = jsonDecode(categoryData);
+      final url = Uri.parse("${KConstantURL.url}/$category/edit/fcmToken");
+
+      final body = {
+        'fcmToken': "",
+        if (category == "user") "userId": decoded['userId'],
+        if (category == "vendor") "vendorId": decoded['vendorId'],
+      };
+
+      print("Sending FCM token clear request...");
+      final response = await http
+          .patch(
+            url,
+            headers: {
+              "Authorization": 'Bearer ${decoded['token']}',
+              "Content-Type": "application/json",
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      print("Server response: ${response.statusCode} — ${response.body}");
+
+      await prefs.clear();
       selectedPageNotifier.value = 0;
 
-      // Navigate back to Login Screen
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => WelcomePage()),
-          (route) => false, // Clears navigation stack
-        );
+      if (!mounted) {
+        print("Widget disposed — cannot navigate.");
+        return;
       }
+
+      setState(() {
+        _isLoading1 = false;
+      });
+
+      print("Navigating to WelcomePage...");
+
+      Navigator.of(context).pushAndRemoveUntil(
+        PageRouteBuilder(
+          pageBuilder:
+              (context, animation, secondaryAnimation) => WelcomePage(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final fade = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeInOut,
+            );
+            return FadeTransition(opacity: fade, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 500),
+        ),
+        (route) => false,
+      );
     } catch (e) {
+      setState(() {
+        _isLoading1 = false;
+      });
       debugPrint('Error during logout: $e');
+      if (mounted) {
+        print("Logout failed: $e");
+      }
     }
   }
 
@@ -228,11 +297,22 @@ class _ProfilePageState extends State<ProfilePage> {
                                     screenWidth,
                                   ),
                                   SizedBox(height: screenHeight * 0.025),
+                                  Center(child: BannerAdWidget()),
+                                  SizedBox(
+                                    height: mediaQuery.size.height * 0.02,
+                                  ),
                                   _buildActionButtons(
                                     isDarkTheme,
                                     isVendorValue,
                                     isLoggedIn,
                                     screenWidth,
+                                  ),
+                                  SizedBox(
+                                    height: mediaQuery.size.height * 0.02,
+                                  ),
+                                  Center(child: BannerAdWidget()),
+                                  SizedBox(
+                                    height: mediaQuery.size.height * 0.02,
                                   ),
                                 ],
                               ),
@@ -387,15 +467,7 @@ class _ProfilePageState extends State<ProfilePage> {
           labelSize,
           textSize,
         ),
-        _buildProfileRow(
-          'Bonus Amount',
-          isVendorValue
-              ? vendor?.bonusAmount.toString()
-              : user?.bonusAmount.toString(),
-          isDarkTheme,
-          labelSize,
-          textSize,
-        ),
+
         if (isVendorValue)
           _buildProfileRow(
             'Profession',
@@ -475,13 +547,6 @@ class _ProfilePageState extends State<ProfilePage> {
         width: buttonWidth,
         child: Column(
           children: [
-            _actionButton(
-              'Upload Profile Image',
-              isDarkTheme,
-              () => _showImageUploader(),
-              buttonHeight,
-              fontSize,
-            ),
             SizedBox(height: buttonSpacing),
             _actionButton(
               'View Sharing',
@@ -533,7 +598,7 @@ class _ProfilePageState extends State<ProfilePage> {
               isDarkTheme,
               () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const PaymentPage()),
+                MaterialPageRoute(builder: (context) => PaymentPage()),
               ),
               buttonHeight,
               fontSize,
@@ -553,16 +618,16 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Future<void> _showImageUploader() async {
-    final result = await showDialog(
-      context: context,
-      builder: (context) => const ImageUploader(),
-    );
+  // Future<void> _showImageUploader() async {
+  //   final result = await showDialog(
+  //     context: context,
+  //     builder: (context) => const ImageUploader(),
+  //   );
 
-    if (result == true) {
-      await _refreshData();
-    }
-  }
+  //   if (result == true) {
+  //     await _refreshData();
+  //   }
+  // }
 
   Future<void> _showWageRateDialog() async {
     final result = await showDialog(
@@ -608,14 +673,30 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
         ),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: isDarkTheme ? Colors.black : Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: fontSize,
-          ),
-        ),
+        child:
+            text != 'Logout'
+                ? Text(
+                  text,
+                  style: TextStyle(
+                    color: isDarkTheme ? Colors.black : Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: fontSize,
+                  ),
+                )
+                : _isLoading1
+                ? SizedBox(
+                  width: 10,
+                  height: 10,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+                : Text(
+                  text,
+                  style: TextStyle(
+                    color: isDarkTheme ? Colors.black : Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: fontSize,
+                  ),
+                ),
       ),
     );
   }
@@ -701,10 +782,14 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           Flexible(
             child: Text(
-              (label == 'Wage Rate' ||
-                      label == "Balance" ||
-                      label == "Bonus Amount")
-                  ? "₹ $value"
+              label == 'Wage Rate'
+                  ? (vendor?.wageRate != null &&
+                          (vendor!.wageRate ?? 0) > 0 &&
+                          vendor!.wageRateType.isNotEmpty)
+                      ? "₹ ${vendor!.wageRate} / ${vendor!.wageRateType}"
+                      : "No Wage Rate"
+                  : label == "Balance"
+                  ? "₹ ${value ?? "0"}"
                   : value ?? "N/A",
               style: TextStyle(
                 fontSize: textSize,
@@ -824,11 +909,23 @@ class _ProfilePageState extends State<ProfilePage> {
       rating: vendor.rating,
       ratingCount: vendor.ratingCount,
       wageRate: vendor.wageRate,
-      address: updatedAddress, // ✅ Update here
+      address: updatedAddress, // ✅ Updated field
       balance: vendor.balance,
-      bonusAmount: vendor.bonusAmount,
+      wageRateType: vendor.wageRateType,
+      commission: vendor.commission,
+      transactionCount: vendor.transactionCount,
+      totalDiscount: vendor.totalDiscount,
+      totalOriginalAmount: vendor.totalOriginalAmount,
       imgURL: vendor.imgURL,
-      message: responseJson['message'] ?? vendor.message,
+      pending: vendor.pending,
+      completed: vendor.completed,
+      canceled: vendor.canceled,
+      earning: vendor.earning,
+      pincode: vendor.pincode,
+      fcmToken: vendor.fcmToken,
+      shareCount: vendor.shareCount,
+      experience: vendor.experience,
+      message: responseJson['message'] ?? vendor.message, // ✅ Updated field
     );
 
     // Save updated model to SharedPreferences
@@ -856,7 +953,6 @@ class _ProfilePageState extends State<ProfilePage> {
       gender: user.gender,
       address: updatedAddress, // ✅ Updated
       balance: user.balance,
-      bonusAmount: user.bonusAmount,
       imgURL: user.imgURL,
       message: responseJson['message'] ?? user.message,
     );

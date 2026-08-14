@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:app_aapkakaam/widgets/firebase_notification.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -54,7 +55,7 @@ class _LoginPageState extends State<LoginPage> {
                 "fcmToken": fcmToken.value,
               }),
             )
-            .timeout(const Duration(seconds: 15)); // Add timeout for better UX
+            .timeout(const Duration(seconds: 15));
 
         if (response.statusCode == 200) {
           try {
@@ -62,19 +63,20 @@ class _LoginPageState extends State<LoginPage> {
           } catch (e) {
             throw Exception("Invalid JSON format from server");
           }
-
           // Update value notifiers
           isAddressAvailable.value = data['address']?.isNotEmpty ?? false;
           isWageRateAvailable.value = data['wageRate'] != null;
 
-          // Store user data
+          // ✅ Updated: Store user data with all new fields
           final SharedPreferences prefs = await SharedPreferences.getInstance();
           await prefs.setString("isLoggedIn", "true");
 
           if (isVendor) {
+            // ✅ Updated: VendorModel.fromJson now includes all fields
             final vendor = VendorModel.fromJson(data);
             await prefs.setString("vendor", jsonEncode(vendor.toJson()));
           } else {
+            // ✅ Updated: UserModel.fromJson now includes all fields
             final user = UserModel.fromJson(data);
             await prefs.setString("user", jsonEncode(user.toJson()));
           }
@@ -84,19 +86,86 @@ class _LoginPageState extends State<LoginPage> {
             isLoggedInL = true;
           });
 
+          print(data);
+          print(data['message']);
           // Show success message
           if (!mounted) return;
           _showSnackBar(data['message'] ?? 'Login successful!', Colors.green);
 
           // Update login state and navigate
           isLoggedIn.value = true;
-          Future.delayed(const Duration(seconds: 2), () {
+          Future.delayed(const Duration(seconds: 2), () async {
             if (!mounted) return;
             Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(builder: (context) => HomePage()),
               (route) => false,
             );
+
+            // ✅ Updated: Handle FCM token update with all fields
+            final res = await FirebaseNotifications.initialize();
+
+            if (res) {
+              final prefs = await SharedPreferences.getInstance();
+              final isVendor1 = isVendor;
+              final category = isVendor1 ? 'vendor' : 'user';
+              final categoryData = prefs.getString(category);
+
+              if (categoryData == null) {
+                print('User/Vendor data not found');
+                return;
+              }
+
+              final decoded = jsonDecode(categoryData);
+              final url = Uri.parse(
+                "${KConstantURL.url}/$category/edit/fcmToken",
+              );
+
+              final body = {
+                'fcmToken': fcmToken.value,
+                if (category == "user") "userId": decoded['userId'],
+                if (category == "vendor") "vendorId": decoded['vendorId'],
+              };
+
+              final response = await http
+                  .patch(
+                    url,
+                    headers: {
+                      "Authorization": 'Bearer ${decoded['token']}',
+                      "Content-Type": "application/json",
+                    },
+                    body: jsonEncode(body),
+                  )
+                  .timeout(const Duration(seconds: 15));
+
+              // ✅ Updated: Update stored data with new fcmToken if needed
+              if (response.statusCode == 200) {
+                final updatedData = jsonDecode(response.body);
+                if (category == "user") {
+                  final existingUser = UserModel.fromJson(decoded);
+                  final updatedUser = existingUser.copyWith(
+                    fcmToken: fcmToken.value,
+                    message: updatedData['message'] ?? existingUser.message,
+                  );
+                  await prefs.setString(
+                    "user",
+                    jsonEncode(updatedUser.toJson()),
+                  );
+                } else {
+                  final existingVendor = VendorModel.fromJson(decoded);
+                  final updatedVendor = existingVendor.copyWith(
+                    fcmToken: fcmToken.value,
+                    message: updatedData['message'] ?? existingVendor.message,
+                  );
+                  await prefs.setString(
+                    "vendor",
+                    jsonEncode(updatedVendor.toJson()),
+                  );
+                }
+              }
+
+              print(response);
+            }
           });
         } else if (response.statusCode == 401) {
           data = jsonDecode(response.body);
@@ -112,7 +181,7 @@ class _LoginPageState extends State<LoginPage> {
         setState(() {
           isLoading = false;
         });
-
+        print(e);
         _showSnackBar(
           e.toString().contains("timeout")
               ? "Connection timeout. Please check your internet."
