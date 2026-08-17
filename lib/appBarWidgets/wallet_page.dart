@@ -91,7 +91,7 @@ class _WalletPageState extends State<WalletPage> {
                             children: [
                               WalletCard(
                                 label: "Balance",
-                                amount: "₹ ${balance ?? 0}",
+                                amount: "₹ ${balance?.toStringAsFixed(2) ?? 0}",
                                 isDark: isDarkTheme,
                                 mediaQuery: mediaQuery,
                               ),

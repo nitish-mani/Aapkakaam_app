@@ -7,9 +7,12 @@ import 'package:app_aapkakaam/models/data_model.dart';
 import 'package:app_aapkakaam/widgets/address_page.dart';
 import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:app_aapkakaam/widgets/create_booking.dart';
-import 'package:app_aapkakaam/widgets/image_uploader.dart';
+// import 'package:app_aapkakaam/widgets/image_uploader.dart';
 import 'package:app_aapkakaam/widgets/payment_page.dart';
 import 'package:app_aapkakaam/widgets/view_share.dart';
+import 'package:app_aapkakaam/widgets/earnings.dart';
+import 'package:app_aapkakaam/widgets/concern.dart';
+import 'package:app_aapkakaam/widgets/leave_management.dart';
 import 'package:app_aapkakaam/widgets/wage_rate_page.dart';
 import 'package:app_aapkakaam/widgets/welcome_page.dart';
 import 'package:flutter/material.dart';
@@ -462,7 +465,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
         _buildProfileRow(
           'Balance',
-          vendor?.balance.toString() ?? '0',
+          isVendorValue
+              ? vendor?.balance.toStringAsFixed(2)
+              : user?.balance.toStringAsFixed(2) ?? '0',
           isDarkTheme,
           labelSize,
           textSize,
@@ -559,6 +564,19 @@ class _ProfilePageState extends State<ProfilePage> {
               fontSize,
             ),
             SizedBox(height: buttonSpacing),
+
+            _actionButton(
+              'Earnings',
+              isDarkTheme,
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const EarningsPage()),
+              ),
+              buttonHeight,
+              fontSize,
+            ),
+            SizedBox(height: buttonSpacing),
+
             if (isVendorValue) ...[
               _actionButton(
                 'Create Booking',
@@ -584,6 +602,21 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               SizedBox(height: buttonSpacing),
             ],
+            if (isVendorValue) ...[
+              _actionButton(
+                'Leave',
+                isDarkTheme,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const LeaveManagementPage(),
+                  ),
+                ),
+                buttonHeight,
+                fontSize,
+              ),
+              SizedBox(height: buttonSpacing),
+            ],
             _actionButton(
               'Add/Update Address',
               isDarkTheme,
@@ -599,6 +632,18 @@ class _ProfilePageState extends State<ProfilePage> {
               () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => PaymentPage()),
+              ),
+              buttonHeight,
+              fontSize,
+            ),
+            SizedBox(height: buttonSpacing),
+
+            _actionButton(
+              'Raise Concern',
+              isDarkTheme,
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ConcernsPage()),
               ),
               buttonHeight,
               fontSize,
