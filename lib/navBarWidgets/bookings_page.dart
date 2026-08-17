@@ -37,6 +37,10 @@ class _BookingsPageState extends State<BookingsPage> {
   int newMessageCountCanceled = 0;
   final bookingCountBySameDate = <String, int>{};
 
+  // Track if calendar should be expanded
+  bool _isCalendarExpanded = true;
+  double _lastScrollOffset = 0;
+
   @override
   void initState() {
     super.initState();
@@ -49,6 +53,35 @@ class _BookingsPageState extends State<BookingsPage> {
         .listen((data) {
           _handleNotificationClick(data);
         });
+
+    // Add scroll listener
+    _scrollController.addListener(_handleScroll);
+  }
+
+  void _handleScroll() {
+    final currentOffset = _scrollController.offset;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+
+    // If scrolling up and at the top, expand calendar
+    if (currentOffset <= 0) {
+      if (!_isCalendarExpanded) {
+        setState(() {
+          _isCalendarExpanded = true;
+        });
+        isCalendarCollapsedNotifier.value = false;
+      }
+    }
+    // If scrolling down, collapse calendar
+    else if (currentOffset > _lastScrollOffset && currentOffset > 100) {
+      if (_isCalendarExpanded) {
+        setState(() {
+          _isCalendarExpanded = false;
+        });
+        isCalendarCollapsedNotifier.value = true;
+      }
+    }
+
+    _lastScrollOffset = currentOffset;
   }
 
   void _handleNotificationClick(Map<String, dynamic> data) {
@@ -92,6 +125,7 @@ class _BookingsPageState extends State<BookingsPage> {
       bookingsRefreshNotifier.removeListener(_refreshListener!);
     }
     _notificationSubscription?.cancel();
+    _scrollController.removeListener(_handleScroll);
     _scrollController.dispose();
     super.dispose();
   }
@@ -316,7 +350,8 @@ class _BookingsPageState extends State<BookingsPage> {
                             SliverAppBar(
                               pinned: false,
                               floating: true,
-                              snap: true,
+                              snap:
+                                  false, // Changed to false for better control
                               stretch: true,
                               primary: false,
                               expandedHeight: 328.h,
@@ -328,17 +363,23 @@ class _BookingsPageState extends State<BookingsPage> {
                                 builder: (context, constraints) {
                                   final visibleHeight =
                                       constraints.biggest.height;
+
                                   final isCollapsed =
                                       visibleHeight <= kToolbarHeight;
+
                                   final opacity =
                                       visibleHeight > kToolbarHeight
                                           ? 1.0
-                                          : visibleHeight / kToolbarHeight;
+                                          : (visibleHeight / kToolbarHeight)
+                                              .clamp(0.0, 1.0);
+
                                   WidgetsBinding.instance.addPostFrameCallback((
                                     _,
                                   ) {
-                                    isCalendarCollapsedNotifier.value =
-                                        isCollapsed;
+                                    if (mounted) {
+                                      isCalendarCollapsedNotifier.value =
+                                          isCollapsed;
+                                    }
                                   });
 
                                   return Opacity(
@@ -359,25 +400,15 @@ class _BookingsPageState extends State<BookingsPage> {
                             SliverPersistentHeader(
                               pinned: true,
                               delegate: _SliverAppBarDelegate(
-                                minHeight: 60.h,
-                                maxHeight: 60.h,
-                                child: ValueListenableBuilder<bool>(
-                                  valueListenable: isCalendarCollapsedNotifier,
-                                  builder: (context, isCollapsed, _) {
-                                    return Container(
-                                      padding: EdgeInsets.fromLTRB(
-                                        8.w,
-                                        isCollapsed ? 8.h : 0,
-                                        8.w,
-                                        0,
-                                      ),
-                                      color:
-                                          isDarkTheme
-                                              ? Colors.teal
-                                              : Colors.amber,
-                                      child: _buildStatusTabs(isDarkTheme),
-                                    );
-                                  },
+                                minHeight: 68.h,
+                                maxHeight: 68.h,
+                                child: Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 8.w,
+                                  ),
+                                  color:
+                                      isDarkTheme ? Colors.teal : Colors.amber,
+                                  child: _buildStatusTabs(isDarkTheme),
                                 ),
                               ),
                             ),
@@ -868,14 +899,14 @@ class _BookingsPageState extends State<BookingsPage> {
 
   Widget _buildStatusTabs(bool isDarkTheme) {
     return Container(
-      height: 60.h,
-      padding: EdgeInsets.symmetric(vertical: 8.h),
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
       decoration: BoxDecoration(
         color: isDarkTheme ? Colors.black : Colors.white,
         borderRadius: BorderRadius.circular(8.r),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _buildTabWithBadge(
             'Pending',
@@ -1023,16 +1054,16 @@ class _BookingsPageState extends State<BookingsPage> {
     final isCompleted = booking.orderCompleted;
     final isCancelled = booking.cancelOrder;
     final hasNewMessage = getBookingStatus(booking.id) == true;
-
+    final isSelfBooked = booking.userId == booking.vendorId;
     // Extract address from the first address object
     final address =
         booking.bookedById.address.isNotEmpty
             ? booking.bookedById.address.first
             : null;
 
-    final village = address?.vill ?? '';
-    final post = address?.post ?? '';
-    final district = address?.dist ?? '';
+    final village = isSelfBooked ? booking.vill : address?.vill ?? '';
+    final post = isSelfBooked ? booking.post : address?.post ?? '';
+    final district = isSelfBooked ? booking.dist : address?.dist ?? '';
 
     // Format date safely
     String formattedDate = 'Date not available';
@@ -1085,8 +1116,12 @@ class _BookingsPageState extends State<BookingsPage> {
               Column(
                 children: [
                   _buildInfoRow('Rating', _formatRating(rating), booking.id),
-
-                  _buildInfoRow('Review', _formatReview(review), booking.id),
+                  _buildInfoRow(
+                    'Review',
+                    _formatReview(review),
+                    booking.id,
+                    isReview: true, // This will show review in a box
+                  ),
                 ],
               ),
             _buildInfoRow(
@@ -1137,24 +1172,58 @@ class _BookingsPageState extends State<BookingsPage> {
     String? bookingId, {
     bool isColored = false,
     Color? color,
+    bool isReview = false,
   }) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 4.h),
+
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12.sp,
-              fontWeight: FontWeight.bold,
-              color: isColored ? color : null,
+          SizedBox(
+            width: 90.w,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.sp,
+                fontWeight: FontWeight.bold,
+                color: isColored ? color : null,
+              ),
             ),
           ),
-
-          Text(
-            capitalizeWords(value),
-            style: TextStyle(fontSize: 12.sp, color: isColored ? color : null),
+          SizedBox(width: 16.w),
+          Expanded(
+            child:
+                isReview
+                    ? Container(
+                      padding: EdgeInsets.all(8.w),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8.r),
+                        border: Border.all(
+                          color: Colors.grey.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        capitalizeWords(value),
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          color: isColored ? color : null,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    )
+                    : Text(
+                      capitalizeWords(value),
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: isColored ? color : null,
+                      ),
+                      softWrap: true,
+                      overflow: TextOverflow.visible,
+                    ),
           ),
         ],
       ),

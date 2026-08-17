@@ -212,7 +212,7 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
       rating: vendor.rating,
       ratingCount: vendor.ratingCount,
       wageRate: vendor.wageRate,
-      address: updatedAddress, // ✅ Updated address
+      address: updatedAddress,
       balance: vendor.balance,
       wageRateType: vendor.wageRateType,
       transactionCount: vendor.transactionCount,
@@ -223,7 +223,7 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
       canceled: vendor.canceled,
       pincode: vendor.pincode,
       earning: vendor.earning,
-      message: result['message'] ?? vendor.message, // ✅ Updated message
+      message: result['message'] ?? vendor.message,
     );
 
     await prefs.setString('vendor', jsonEncode(updatedVendor.toJson()));
@@ -247,7 +247,7 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
       phoneNo: user.phoneNo,
       verifyPhoneNo: user.verifyPhoneNo,
       gender: user.gender,
-      address: updatedAddress, // ✅ Updated address
+      address: updatedAddress,
       balance: user.balance,
       transactionCount: user.transactionCount,
       totalDiscount: user.totalDiscount,
@@ -256,7 +256,7 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
       completed: user.completed,
       canceled: user.canceled,
       pincode: user.pincode,
-      message: result['message'] ?? user.message, // ✅ Updated message
+      message: result['message'] ?? user.message,
     );
 
     await prefs.setString('user', jsonEncode(updatedUser.toJson()));
@@ -281,62 +281,134 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    // final isPortrait = mediaQuery.orientation == Orientation.portrait;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = mediaQuery.size.width;
 
     return Dialog(
-      insetPadding: EdgeInsets.all(mediaQuery.size.width * 0.05),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      insetPadding: EdgeInsets.all(screenWidth * 0.05),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      backgroundColor: isDark ? Colors.grey[900] : Colors.white,
+      elevation: 8,
       child: SingleChildScrollView(
         child: Padding(
-          padding: EdgeInsets.all(mediaQuery.size.width * 0.05),
+          padding: EdgeInsets.all(screenWidth * 0.06),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Add Address',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: mediaQuery.size.width * 0.06,
-                ),
-              ),
-              SizedBox(height: mediaQuery.size.height * 0.03),
-              if (_errorMessage.isNotEmpty)
-                Padding(
-                  padding: EdgeInsets.only(top: mediaQuery.size.height * 0.01),
-                  child: Text(
-                    _errorMessage,
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontSize: mediaQuery.size.width * 0.035,
+              // Header with Icon
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2196F3), Color(0xFF1565C0)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withOpacity(0.3),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.location_on_outlined,
+                    color: Colors.white,
+                    size: 28,
                   ),
                 ),
-              SizedBox(height: mediaQuery.size.height * 0.03),
-              _buildTextField('Village', _villageController, mediaQuery),
+              ),
               SizedBox(height: mediaQuery.size.height * 0.02),
+              // Title
+              Text(
+                'Add Address',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: screenWidth * 0.055,
+                  color: isDark ? Colors.white : Colors.grey[900],
+                  letterSpacing: 0.5,
+                ),
+              ),
+              SizedBox(height: mediaQuery.size.height * 0.01),
+              Text(
+                'Enter your location details',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: screenWidth * 0.035,
+                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  letterSpacing: 0.3,
+                ),
+              ),
+              SizedBox(height: mediaQuery.size.height * 0.025),
+              // Error Message
+              if (_errorMessage.isNotEmpty)
+                Container(
+                  padding: EdgeInsets.all(screenWidth * 0.03),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red, size: 20),
+                      SizedBox(width: screenWidth * 0.02),
+                      Expanded(
+                        child: Text(
+                          _errorMessage,
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: screenWidth * 0.035,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (_errorMessage.isNotEmpty)
+                SizedBox(height: mediaQuery.size.height * 0.02),
+              // Village Field
+              _buildTextField(
+                'Village',
+                _villageController,
+                mediaQuery,
+                icon: Icons.house_outlined,
+              ),
+              SizedBox(height: mediaQuery.size.height * 0.02),
+              // Pincode Field
               _buildPincodeField(mediaQuery),
-
               SizedBox(height: mediaQuery.size.height * 0.02),
+              // Post Office Dropdown
               _buildPostDropdown(mediaQuery),
               SizedBox(height: mediaQuery.size.height * 0.02),
+              // District Field (Read-only)
               _buildTextField(
                 'District',
                 _districtController,
                 mediaQuery,
                 readOnly: true,
+                icon: Icons.location_city_outlined,
               ),
               SizedBox(height: mediaQuery.size.height * 0.02),
+              // State Field (Read-only)
               _buildTextField(
                 'State',
                 _stateController,
                 mediaQuery,
                 readOnly: true,
+                icon: Icons.map_outlined,
               ),
-              SizedBox(height: mediaQuery.size.height * 0.03),
+              SizedBox(height: mediaQuery.size.height * 0.025),
+              // Action Buttons
               _buildActionButtons(context, mediaQuery),
-              SizedBox(height: mediaQuery.size.height * 0.03),
-
+              SizedBox(height: mediaQuery.size.height * 0.025),
+              // Ad Banner
               Center(child: BannerAdWidget()),
             ],
           ),
@@ -350,130 +422,245 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
     TextEditingController controller,
     MediaQueryData mediaQuery, {
     bool readOnly = false,
+    IconData? icon,
   }) {
-    return TextField(
-      controller: controller,
-      readOnly: readOnly,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: mediaQuery.size.width * 0.04,
-          vertical: mediaQuery.size.height * 0.02,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = mediaQuery.size.width;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[800] : Colors.grey[50],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+          width: 1.5,
         ),
       ),
-      style: TextStyle(fontSize: mediaQuery.size.width * 0.04),
+      child: TextField(
+        controller: controller,
+        readOnly: readOnly,
+        style: TextStyle(
+          fontSize: screenWidth * 0.04,
+          color: isDark ? Colors.white : Colors.grey[900],
+        ),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(
+            color: isDark ? Colors.grey[400] : Colors.grey[600],
+            fontSize: screenWidth * 0.035,
+          ),
+          prefixIcon:
+              icon != null
+                  ? Icon(
+                    icon,
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                    size: 22,
+                  )
+                  : null,
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: screenWidth * 0.04,
+            vertical: mediaQuery.size.height * 0.018,
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildPincodeField(MediaQueryData mediaQuery) {
-    return TextField(
-      controller: _pincodeController,
-      focusNode: _pincodeFocusNode,
-      keyboardType: TextInputType.number,
-      maxLength: 6,
-      decoration: InputDecoration(
-        labelText: 'Pincode',
-        border: const OutlineInputBorder(),
-        counterText: '',
-        suffixIcon:
-            _isLoading
-                ? Padding(
-                  padding: EdgeInsets.all(mediaQuery.size.width * 0.03),
-                  child: SizedBox(
-                    width: mediaQuery.size.width * 0.04,
-                    height: mediaQuery.size.width * 0.04,
-                    child: const CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-                : null,
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: mediaQuery.size.width * 0.04,
-          vertical: mediaQuery.size.height * 0.02,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = mediaQuery.size.width;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[800] : Colors.grey[50],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+          width: 1.5,
         ),
       ),
-      style: TextStyle(fontSize: mediaQuery.size.width * 0.04),
-      onChanged: (value) {
-        if (value.length == 6) {
-          _fetchAddressByPincode(value);
-        }
-      },
+      child: TextField(
+        controller: _pincodeController,
+        focusNode: _pincodeFocusNode,
+        keyboardType: TextInputType.number,
+        maxLength: 6,
+        style: TextStyle(
+          fontSize: screenWidth * 0.04,
+          color: isDark ? Colors.white : Colors.grey[900],
+        ),
+        decoration: InputDecoration(
+          labelText: 'Pincode',
+          labelStyle: TextStyle(
+            color: isDark ? Colors.grey[400] : Colors.grey[600],
+            fontSize: screenWidth * 0.035,
+          ),
+          prefixIcon: Icon(
+            Icons.pin_drop_outlined,
+            color: isDark ? Colors.grey[400] : Colors.grey[600],
+            size: 22,
+          ),
+          counterText: '',
+          suffixIcon:
+              _isLoading
+                  ? Padding(
+                    padding: EdgeInsets.all(screenWidth * 0.02),
+                    child: SizedBox(
+                      width: screenWidth * 0.05,
+                      height: screenWidth * 0.05,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.blue,
+                      ),
+                    ),
+                  )
+                  : null,
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: screenWidth * 0.04,
+            vertical: mediaQuery.size.height * 0.018,
+          ),
+        ),
+        onChanged: (value) {
+          if (value.length == 6) {
+            _fetchAddressByPincode(value);
+          }
+        },
+      ),
     );
   }
 
   Widget _buildPostDropdown(MediaQueryData mediaQuery) {
-    return DropdownButtonFormField<String>(
-      value: _selectedPost,
-      items:
-          _postOffices
-              .map(
-                (post) => DropdownMenuItem(
-                  value: post,
-                  child: Text(
-                    post,
-                    style: TextStyle(fontSize: mediaQuery.size.width * 0.04),
-                  ),
-                ),
-              )
-              .toList(),
-      onChanged: (value) => setState(() => _selectedPost = value),
-      decoration: InputDecoration(
-        labelText: 'Post Office',
-        border: const OutlineInputBorder(),
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: mediaQuery.size.width * 0.04,
-          vertical: mediaQuery.size.height * 0.02,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = mediaQuery.size.width;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[800] : Colors.grey[50],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+          width: 1.5,
         ),
       ),
-      style: TextStyle(fontSize: mediaQuery.size.width * 0.04),
+      child: DropdownButtonFormField<String>(
+        value: _selectedPost,
+        dropdownColor: isDark ? Colors.grey[800] : Colors.white,
+        style: TextStyle(
+          fontSize: screenWidth * 0.04,
+          color: isDark ? Colors.white : Colors.grey[900],
+        ),
+        decoration: InputDecoration(
+          labelText: 'Post Office',
+          labelStyle: TextStyle(
+            color: isDark ? Colors.grey[400] : Colors.grey[600],
+            fontSize: screenWidth * 0.035,
+          ),
+          prefixIcon: Icon(
+            Icons.local_post_office_outlined,
+            color: isDark ? Colors.grey[400] : Colors.grey[600],
+            size: 22,
+          ),
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: screenWidth * 0.04,
+            vertical: mediaQuery.size.height * 0.01,
+          ),
+        ),
+        icon: Icon(
+          Icons.keyboard_arrow_down_rounded,
+          color: isDark ? Colors.grey[400] : Colors.grey[600],
+        ),
+        items:
+            _postOffices
+                .map(
+                  (post) => DropdownMenuItem(
+                    value: post,
+                    child: Text(
+                      post,
+                      style: TextStyle(fontSize: screenWidth * 0.04),
+                    ),
+                  ),
+                )
+                .toList(),
+        onChanged: (value) => setState(() => _selectedPost = value),
+      ),
     );
   }
 
   Widget _buildActionButtons(BuildContext context, MediaQueryData mediaQuery) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = mediaQuery.size.width;
+
     return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        TextButton(
-          onPressed: _isLoading ? null : () => Navigator.pop(context),
-          child: Text(
-            'Cancel',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: mediaQuery.size.width * 0.04,
+        Expanded(
+          child: TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.grey[600],
+              padding: EdgeInsets.symmetric(
+                vertical: mediaQuery.size.height * 0.018,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
+                  width: 1.5,
+                ),
+              ),
+            ),
+            onPressed: _isLoading ? null : () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: screenWidth * 0.04,
+                color: isDark ? Colors.grey[400] : Colors.grey[700],
+              ),
             ),
           ),
         ),
-        SizedBox(width: mediaQuery.size.width * 0.04),
-        ElevatedButton(
-          onPressed: _isLoading ? null : _submitAddress,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+        SizedBox(width: screenWidth * 0.03),
+        Expanded(
+          child: ElevatedButton(
+            onPressed: _isLoading ? null : _submitAddress,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(
+                vertical: mediaQuery.size.height * 0.018,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
+              shadowColor: Colors.blue.withOpacity(0.3),
             ),
-            padding: EdgeInsets.symmetric(
-              horizontal: mediaQuery.size.width * 0.06,
-              vertical: mediaQuery.size.height * 0.015,
-            ),
+            child:
+                _isLoading
+                    ? SizedBox(
+                      width: screenWidth * 0.05,
+                      height: screenWidth * 0.05,
+                      child: const CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                    : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.check_circle_outline, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Submit',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: screenWidth * 0.04,
+                          ),
+                        ),
+                      ],
+                    ),
           ),
-          child:
-              _isLoading
-                  ? SizedBox(
-                    width: mediaQuery.size.width * 0.05,
-                    height: mediaQuery.size.width * 0.05,
-                    child: const CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
-                  )
-                  : Text(
-                    'Submit',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: mediaQuery.size.width * 0.04,
-                      color: Colors.white,
-                    ),
-                  ),
         ),
       ],
     );

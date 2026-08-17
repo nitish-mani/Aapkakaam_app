@@ -108,9 +108,10 @@ class _OrdersPageState extends State<OrdersPage> {
 
     try {
       final response = await http.get(url, headers: {"Authorization": token});
-      print(response);
+
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
+        print(jsonResponse);
         totalOrders = jsonResponse['total'] ?? 0;
         initializeIsLoadingCFromResponse(jsonResponse);
         _calculateOrderCounts(jsonResponse);
@@ -1158,8 +1159,16 @@ class _OrdersPageState extends State<OrdersPage> {
     final String bookingId = _getBookingId(order);
     final bool isCancelLoading = isLoadingC[bookingId] ?? false;
     final bool isCompleteLoading = isLoading[bookingId] ?? false;
-    final int rating = order['rating'] ?? 0;
-    final String review = order['review'] ?? '';
+    final int rating =
+        order['rating'] is num ? (order['rating'] as num).toInt() : 0;
+
+    final String review = order['review']?.toString() ?? '';
+
+    final String userId = order['userId']?.toString() ?? '';
+    final String vendorId = order['vendorId']?.toString() ?? '';
+
+    final bool isSelfBooked =
+        userId.isNotEmpty && vendorId.isNotEmpty && userId == vendorId;
 
     Color borderColor;
     if (order['cancelOrder'] == true) {
@@ -1207,6 +1216,13 @@ class _OrdersPageState extends State<OrdersPage> {
             isDarkTheme,
             isSmallScreen,
           ),
+          if (isSelfBooked)
+            _buildOrderInfoRow(
+              'Self Booked',
+              'Yes',
+              isDarkTheme,
+              isSmallScreen,
+            ),
 
           // Pending Order Actions
           if (orderDetails == 1) ...[

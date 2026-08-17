@@ -80,8 +80,7 @@ class WageRatePage extends StatelessWidget {
                 if (response.statusCode == 200) {
                   final result = jsonDecode(response.body);
 
-                  VendorModel currentVendor = VendorModel.fromJson(decoded);
-                  await _updateVendorWageRate(currentVendor, result);
+                  await _updateVendorWageRate(decoded, result);
 
                   isWageRateAvailable.value = true;
                   Navigator.of(
@@ -110,120 +109,296 @@ class WageRatePage extends StatelessWidget {
               }
             }
 
-            return AlertDialog(
+            return Dialog(
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(24),
               ),
               backgroundColor: isDark ? Colors.grey[900] : Colors.white,
-              title: Text(
-                "Update Wage Rate",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: screenWidth * 0.05,
-                  fontWeight: FontWeight.bold,
+              elevation: 8,
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: screenWidth * 0.06,
+                  vertical: screenWidth * 0.06,
                 ),
-              ),
-              content: SizedBox(
-                width: screenWidth * 0.8,
+                width: screenWidth * 0.85,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextField(
-                      controller: wageRateController,
-                      keyboardType: TextInputType.number,
-                      style: TextStyle(fontSize: screenWidth * 0.04),
-                      decoration: InputDecoration(
-                        labelText: "Enter Wage Rate",
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    // Icon Header
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.green.withOpacity(0.3),
+                            blurRadius: 20,
+                            spreadRadius: 5,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.attach_money,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Title
+                    Text(
+                      "Update Wage Rate",
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.055,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : Colors.grey[900],
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Set your rate per service",
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.035,
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    // Wage Rate Input
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey[800] : Colors.grey[50],
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: TextField(
+                        controller: wageRateController,
+                        keyboardType: TextInputType.number,
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.045,
+                          color: isDark ? Colors.white : Colors.grey[900],
+                        ),
+                        decoration: InputDecoration(
+                          prefixIcon: Icon(
+                            Icons.currency_rupee,
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                            size: 22,
+                          ),
+                          hintText: "Enter amount",
+                          hintStyle: TextStyle(
+                            color: isDark ? Colors.grey[500] : Colors.grey[400],
+                            fontSize: screenWidth * 0.04,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 16),
-
-                    DropdownButtonFormField<String>(
-                      value: selectedWageRateType,
-                      decoration: InputDecoration(
-                        labelText: "Wage Rate Type",
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    // Wage Rate Type Dropdown
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey[800] : Colors.grey[50],
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+                          width: 1.5,
                         ),
                       ),
-                      items: const [
-                        DropdownMenuItem(value: "Day", child: Text("Day")),
-                        DropdownMenuItem(value: "Hour", child: Text("Hour")),
-                        DropdownMenuItem(value: "Km", child: Text("Km")),
-                        DropdownMenuItem(
-                          value: "1k People",
-                          child: Text("1k People"),
+                      child: DropdownButtonFormField<String>(
+                        value: selectedWageRateType,
+                        decoration: InputDecoration(
+                          prefixIcon: Icon(
+                            Icons.timer_outlined,
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                            size: 22,
+                          ),
+                          hintText: "Select rate type",
+                          hintStyle: TextStyle(
+                            color: isDark ? Colors.grey[500] : Colors.grey[400],
+                            fontSize: screenWidth * 0.04,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
                         ),
-                        DropdownMenuItem(
-                          value: "Service",
-                          child: Text("Service"),
+                        dropdownColor: isDark ? Colors.grey[800] : Colors.white,
+                        style: TextStyle(
+                          fontSize: screenWidth * 0.04,
+                          color: isDark ? Colors.white : Colors.grey[900],
+                        ),
+                        icon: Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: "Day",
+                            child: Row(
+                              children: [
+                                Icon(Icons.calendar_today, size: 18),
+                                SizedBox(width: 8),
+                                Text("Per Day"),
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: "Hour",
+                            child: Row(
+                              children: [
+                                Icon(Icons.access_time, size: 18),
+                                SizedBox(width: 8),
+                                Text("Per Hour"),
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: "Km",
+                            child: Row(
+                              children: [
+                                Icon(Icons.directions_car, size: 18),
+                                SizedBox(width: 8),
+                                Text("Per Km"),
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: "1k People",
+                            child: Row(
+                              children: [
+                                Icon(Icons.people_outline, size: 18),
+                                SizedBox(width: 8),
+                                Text("Per 1k People"),
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: "Service",
+                            child: Row(
+                              children: [
+                                Icon(Icons.build_circle_outlined, size: 18),
+                                SizedBox(width: 8),
+                                Text("Per Service"),
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: "Other",
+                            child: Row(
+                              children: [
+                                Icon(Icons.accessibility_new, size: 18),
+                                SizedBox(width: 8),
+                                Text("Other"),
+                              ],
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            selectedWageRateType = value;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    // Action Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.grey[600],
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(
+                                  color:
+                                      isDark
+                                          ? Colors.grey[700]!
+                                          : Colors.grey[300]!,
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                            onPressed: () {
+                              Navigator.of(context, rootNavigator: true).pop();
+                              Navigator.pop(context);
+                            },
+                            child: Text(
+                              "Cancel",
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.04,
+                                fontWeight: FontWeight.w600,
+                                color:
+                                    isDark
+                                        ? Colors.grey[400]
+                                        : Colors.grey[700],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 2,
+                              shadowColor: Colors.green.withOpacity(0.3),
+                            ),
+                            onPressed: isLoading ? null : updateWageRate,
+                            child:
+                                isLoading
+                                    ? SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                    : Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        const Icon(
+                                          Icons.check_circle_outline,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          "Confirm",
+                                          style: TextStyle(
+                                            fontSize: screenWidth * 0.04,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                          ),
                         ),
                       ],
-                      onChanged: (value) {
-                        setState(() {
-                          selectedWageRateType = value;
-                        });
-                      },
                     ),
                   ],
                 ),
               ),
-              actionsAlignment: MainAxisAlignment.spaceEvenly,
-              actions: [
-                TextButton(
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.redAccent,
-                    textStyle: TextStyle(
-                      fontSize: screenWidth * 0.04,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  onPressed:
-                      () => {
-                        Navigator.of(
-                          context,
-                          rootNavigator: true,
-                        ).pop(), // close dialog
-                        Navigator.pop(context),
-                      },
-                  child: const Text("Cancel"),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    textStyle: TextStyle(
-                      fontSize: screenWidth * 0.04,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  onPressed: isLoading ? null : updateWageRate,
-                  child:
-                      isLoading
-                          ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                          : const Text(
-                            "Confirm",
-                            style: TextStyle(color: Colors.black),
-                          ),
-                ),
-              ],
             );
           },
         );
@@ -232,34 +407,29 @@ class WageRatePage extends StatelessWidget {
   }
 
   Future<void> _updateVendorWageRate(
-    VendorModel vendor,
+    Map<String, dynamic> decoded,
     Map<String, dynamic> responseJson,
   ) async {
-    double updatedWageRate = (responseJson['wageRate'] as double).toDouble();
-    String updatedWageRateType = (responseJson['wageRateType']);
+    // Get current vendor data
+    final prefs = await SharedPreferences.getInstance();
+    final vendorJson = prefs.getString('vendor');
+    if (vendorJson == null) return;
 
-    VendorModel updatedVendor = VendorModel(
-      token: vendor.token,
-      vendorId: vendor.vendorId,
-      name: vendor.name,
-      email: vendor.email,
-      verifyEmail: vendor.verifyEmail,
-      phoneNo: vendor.phoneNo,
-      verifyPhoneNo: vendor.verifyPhoneNo,
-      type: vendor.type,
-      gender: vendor.gender,
-      rating: vendor.rating,
-      ratingCount: vendor.ratingCount,
-      wageRate: updatedWageRate,
-      address: vendor.address,
-      balance: vendor.balance,
-      wageRateType: updatedWageRateType,
-      imgURL: vendor.imgURL,
-      message: responseJson['message'] ?? vendor.message,
-    );
+    final currentVendor = jsonDecode(vendorJson);
 
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setString('vendor', jsonEncode(updatedVendor.toJson()));
+    // Create updated vendor with proper types
+    final updatedVendor = {
+      ...currentVendor,
+      'wageRate': (responseJson['wageRate'] as num).toDouble(),
+      'wageRateType': responseJson['wageRateType'] ?? '',
+      'message': responseJson['message'] ?? currentVendor['message'] ?? '',
+    };
+
+    // Save updated vendor data
+    await prefs.setString('vendor', jsonEncode(updatedVendor));
+
+    // Update the VendorModel in memory if needed
+    // This will be picked up when the profile page reloads
   }
 
   void _showErrorSnackbar(BuildContext context, String message) {
