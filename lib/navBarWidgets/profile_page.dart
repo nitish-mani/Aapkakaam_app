@@ -152,7 +152,6 @@ class _ProfilePageState extends State<ProfilePage> {
     final prefs = await SharedPreferences.getInstance();
 
     try {
-      print("Logout started...");
       final isVendor1 = isVendor.value;
       final category = isVendor1 ? 'vendor' : 'user';
       final categoryData = prefs.getString(category);
@@ -177,7 +176,6 @@ class _ProfilePageState extends State<ProfilePage> {
         if (category == "vendor") "vendorId": decoded['vendorId'],
       };
 
-      print("Sending FCM token clear request...");
       final response = await http
           .patch(
             url,
@@ -189,21 +187,16 @@ class _ProfilePageState extends State<ProfilePage> {
           )
           .timeout(const Duration(seconds: 15));
 
-      print("Server response: ${response.statusCode} — ${response.body}");
-
       await prefs.clear();
       selectedPageNotifier.value = 0;
 
       if (!mounted) {
-        print("Widget disposed — cannot navigate.");
         return;
       }
 
       setState(() {
         _isLoading1 = false;
       });
-
-      print("Navigating to WelcomePage...");
 
       Navigator.of(context).pushAndRemoveUntil(
         PageRouteBuilder(
@@ -224,7 +217,6 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() {
         _isLoading1 = false;
       });
-      debugPrint('Error during logout: $e');
       if (mounted) {
         print("Logout failed: $e");
       }

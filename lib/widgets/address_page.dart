@@ -148,7 +148,7 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
       final url = Uri.parse("${KConstantURL.url}/$category/update/address");
 
       final body = {
-        "vill": _capitalizeFirstLetter(village),
+        "vill": village.toUpperCase(),
         "post": post,
         "dist": district,
         "state": state,
@@ -664,9 +664,5 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
         ),
       ],
     );
-  }
-
-  String _capitalizeFirstLetter(String str) {
-    return str.isNotEmpty ? str[0].toUpperCase() + str.substring(1) : str;
   }
 }

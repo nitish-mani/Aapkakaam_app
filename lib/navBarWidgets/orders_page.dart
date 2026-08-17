@@ -889,7 +889,8 @@ class _OrdersPageState extends State<OrdersPage> {
   Widget _buildPaginationControls(bool isDarkTheme, MediaQueryData mediaQuery) {
     final canGoBack = pageNo > 1;
     final canGoForward = totalOrders > 12 && pageNo < totalOrders / 12;
-    final totalPages = (totalOrders / 12).ceil();
+    final totalPage = (totalOrders / 12).ceil();
+    final totalPages = totalPage == 0 ? 1 : totalPage;
     return Container(
       height: mediaQuery.size.height * 0.06,
       padding: EdgeInsets.symmetric(horizontal: mediaQuery.size.width * 0.02),
