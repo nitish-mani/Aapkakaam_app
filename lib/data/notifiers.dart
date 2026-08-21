@@ -34,3 +34,6 @@ ValueNotifier<int> monthNotifier = ValueNotifier<int>(0);
 ValueNotifier<int> yearNotifier = ValueNotifier<int>(0);
 
 ValueNotifier<String> otpId1 = ValueNotifier<String>("");
+
+final ValueNotifier<String?> pendingNotificationBookingIdNotifier =
+    ValueNotifier<String?>(null);

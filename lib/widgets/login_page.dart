@@ -6,9 +6,10 @@ import 'dart:convert';
 import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/models/data_model.dart';
 import 'package:app_aapkakaam/navBarWidgets/home_page.dart';
+import 'package:app_aapkakaam/widgets/change_password.dart';
 import 'package:app_aapkakaam/widgets/signup_page.dart';
 import 'package:app_aapkakaam/widgets/welcome_page.dart';
-import 'package:flutter/foundation.dart';
+// import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:http/http.dart' as http;
@@ -76,7 +77,7 @@ class _LoginPageState extends State<LoginPage> {
     final String category = isVendor ? 'vendor' : 'user';
     final Uri url = Uri.parse("$serverUrl/$category/login");
 
-    print(Uri);
+    // print(Uri);
     try {
       final response = await http
           .post(
@@ -117,81 +118,27 @@ class _LoginPageState extends State<LoginPage> {
           isLoggedInL = true;
         });
 
-        print(data);
-        print(data['message']);
+        // print(data);
+        // print(data['message']);
 
         if (!mounted) return;
         _showSnackBar(data['message'] ?? 'Login successful!', Colors.green);
 
         // Update login state and navigate
         isLoggedIn.value = true;
+
         Future.delayed(const Duration(seconds: 2), () async {
           if (!mounted) return;
+
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => const HomePage()),
             (route) => false,
           );
 
-          // Handle FCM token update
-          final res = await FirebaseNotifications.initialize();
-
-          if (res) {
-            final prefs = await SharedPreferences.getInstance();
-            final isVendor1 = isVendor;
-            final category = isVendor1 ? 'vendor' : 'user';
-            final categoryData = prefs.getString(category);
-
-            if (categoryData == null) {
-              print('User/Vendor data not found');
-              return;
-            }
-
-            final decoded = jsonDecode(categoryData);
-            final url = Uri.parse(
-              "${KConstantURL.url}/$category/edit/fcmToken",
-            );
-
-            final body = {
-              'fcmToken': fcmToken.value,
-              if (category == "user") "userId": decoded['userId'],
-              if (category == "vendor") "vendorId": decoded['vendorId'],
-            };
-
-            final response = await http
-                .patch(
-                  url,
-                  headers: {
-                    "Authorization": 'Bearer ${decoded['token']}',
-                    "Content-Type": "application/json",
-                  },
-                  body: jsonEncode(body),
-                )
-                .timeout(const Duration(seconds: 15));
-
-            if (response.statusCode == 200) {
-              final updatedData = jsonDecode(response.body);
-              if (category == "user") {
-                final existingUser = UserModel.fromJson(decoded);
-                final updatedUser = existingUser.copyWith(
-                  fcmToken: fcmToken.value,
-                  message: updatedData['message'] ?? existingUser.message,
-                );
-                await prefs.setString("user", jsonEncode(updatedUser.toJson()));
-              } else {
-                final existingVendor = VendorModel.fromJson(decoded);
-                final updatedVendor = existingVendor.copyWith(
-                  fcmToken: fcmToken.value,
-                  message: updatedData['message'] ?? existingVendor.message,
-                );
-                await prefs.setString(
-                  "vendor",
-                  jsonEncode(updatedVendor.toJson()),
-                );
-              }
-            }
-            print(response);
-          }
+          // Make sure the latest FCM token is saved
+          // against the newly logged-in account.
+          await FirebaseNotifications.synchronizeCurrentToken();
         });
       } else if (response.statusCode == 401) {
         data = jsonDecode(response.body);
@@ -437,10 +384,12 @@ class _LoginPageState extends State<LoginPage> {
                                   child: TextButton(
                                     onPressed: () {
                                       // Navigate to forgot password
-                                      Navigator.pushNamed(
+                                      Navigator.push(
                                         context,
-                                        '/editPhoneEmail',
-                                        arguments: {'editType': 'pass'},
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) => ChangePasswordPage(),
+                                        ),
                                       );
                                     },
                                     style: TextButton.styleFrom(

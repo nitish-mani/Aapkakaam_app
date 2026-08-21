@@ -281,7 +281,7 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness != Brightness.dark;
     final screenWidth = mediaQuery.size.width;
 
     return Dialog(
@@ -424,7 +424,7 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
     bool readOnly = false,
     IconData? icon,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness != Brightness.dark;
     final screenWidth = mediaQuery.size.width;
 
     return Container(
@@ -468,7 +468,7 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
   }
 
   Widget _buildPincodeField(MediaQueryData mediaQuery) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness != Brightness.dark;
     final screenWidth = mediaQuery.size.width;
 
     return Container(
@@ -531,7 +531,7 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
   }
 
   Widget _buildPostDropdown(MediaQueryData mediaQuery) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness != Brightness.dark;
     final screenWidth = mediaQuery.size.width;
 
     return Container(
@@ -589,7 +589,7 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
   }
 
   Widget _buildActionButtons(BuildContext context, MediaQueryData mediaQuery) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness != Brightness.dark;
     final screenWidth = mediaQuery.size.width;
 
     return Row(

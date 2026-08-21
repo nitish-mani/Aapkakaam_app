@@ -995,7 +995,7 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
     final statusBgColor = _getStatusBgColor(status);
     final statusLabel = _getStatusLabel(status);
     final statusIcon = _getStatusIcon(status);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness != Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -1323,7 +1323,7 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
   }
 
   Widget _buildSection(String title, List<Leave> leaves, IconData icon) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness != Brightness.dark;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1429,8 +1429,8 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
+    final isDark1 = Theme.of(context).brightness == Brightness.dark;
+    final isDark = !isDark1;
     return Scaffold(
       backgroundColor: isDark ? Colors.grey[900] : Colors.grey[50],
       body: SafeArea(
