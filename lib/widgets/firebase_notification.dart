@@ -4,8 +4,8 @@ import 'dart:convert';
 import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:app_aapkakaam/models/data_model.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
@@ -174,6 +174,12 @@ class FirebaseNotifications {
 
             final data = Map<String, dynamic>.from(decoded);
 
+            debugPrint('Local notification data: $data');
+
+            // IMPORTANT:
+            // Store exact month/year immediately.
+            _prepareNotificationClick(data);
+
             _notificationClickStreamController.add(data);
 
             _handleNotificationData(data);
@@ -263,8 +269,6 @@ class FirebaseNotifications {
           }
 
           debugPrint('FCM TOKEN REFRESHED');
-
-          debugPrint(token);
 
           await _handleFcmToken(token);
         } catch (e, stackTrace) {
@@ -535,9 +539,9 @@ class FirebaseNotifications {
 
         final now = DateTime.now().millisecondsSinceEpoch;
 
-        // ------------------------------------------------------
+        // ----------------------------------------------------
         // DEDUPLICATE
-        // ------------------------------------------------------
+        // ----------------------------------------------------
 
         if (_processedMessages.containsKey(messageHash)) {
           final lastProcessed = _processedMessages[messageHash]!;
@@ -551,15 +555,15 @@ class FirebaseNotifications {
 
         _processedMessages[messageHash] = now;
 
-        // ------------------------------------------------------
+        // ----------------------------------------------------
         // SHOW LOCAL NOTIFICATION
-        // ------------------------------------------------------
+        // ----------------------------------------------------
 
         await _showNotification(message);
 
-        // ------------------------------------------------------
+        // ----------------------------------------------------
         // UPDATE BOOKING COUNT
-        // ------------------------------------------------------
+        // ----------------------------------------------------
 
         setNotificationCount(message.data);
       } catch (e, stackTrace) {
@@ -579,7 +583,17 @@ class FirebaseNotifications {
 
         final data = Map<String, dynamic>.from(message.data);
 
-        debugPrint('Notification opened: $data');
+        debugPrint('========================================');
+
+        debugPrint('FCM NOTIFICATION CLICKED');
+
+        debugPrint('Notification data: $data');
+
+        debugPrint('========================================');
+
+        // IMPORTANT:
+        // Store booking/month/year immediately.
+        _prepareNotificationClick(data);
 
         _notificationClickStreamController.add(data);
 
@@ -607,7 +621,20 @@ class FirebaseNotifications {
 
         final data = Map<String, dynamic>.from(initialMessage.data);
 
-        debugPrint('Initial notification: $data');
+        debugPrint('========================================');
+
+        debugPrint('INITIAL FCM NOTIFICATION');
+
+        debugPrint('Initial notification data: $data');
+
+        debugPrint('========================================');
+
+        // IMPORTANT:
+        // Process target month/year before
+        // BookingsPage is necessarily ready.
+        _prepareNotificationClick(data);
+
+        _notificationClickStreamController.add(data);
 
         _handleNotificationData(data);
       } catch (e, stackTrace) {
@@ -619,6 +646,33 @@ class FirebaseNotifications {
       Future.delayed(const Duration(milliseconds: 500), () {
         _isNotificationClick = false;
       });
+    }
+  }
+
+  // ============================================================
+  // PREPARE NOTIFICATION CLICK
+  // ============================================================
+
+  static void _prepareNotificationClick(Map<String, dynamic> data) {
+    try {
+      debugPrint('Preparing notification click...');
+
+      debugPrint(
+        'Booking ID: '
+        '${data['bookingId'] ?? data['id']}',
+      );
+
+      debugPrint('Month: ${data['month']}');
+
+      debugPrint('Year: ${data['year']}');
+
+      _setPendingNotificationBooking(data);
+
+      _setNotificationMonthYear(data);
+    } catch (e, stackTrace) {
+      debugPrint('_prepareNotificationClick error: $e');
+
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
@@ -657,6 +711,100 @@ class FirebaseNotifications {
   }
 
   // ============================================================
+  // SET PENDING BOOKING
+  // ============================================================
+
+  static void _setPendingNotificationBooking(Map<String, dynamic> data) {
+    try {
+      final bookingId = data['bookingId']?.toString() ?? data['id']?.toString();
+
+      if (bookingId == null || bookingId.isEmpty) {
+        debugPrint('Notification does not contain bookingId');
+
+        return;
+      }
+
+      debugPrint(
+        'Pending notification booking: '
+        '$bookingId',
+      );
+
+      pendingNotificationBookingIdNotifier.value = bookingId;
+    } catch (e, stackTrace) {
+      debugPrint('_setPendingNotificationBooking error: $e');
+
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  // ============================================================
+  // SET NOTIFICATION MONTH / YEAR
+  // ============================================================
+
+  /// Backend sends JavaScript-style zero-based
+  /// month:
+  ///
+  /// January = 0
+  /// February = 1
+  /// ...
+  /// December = 11
+  ///
+  /// Flutter uses:
+  ///
+  /// January = 1
+  /// ...
+  /// December = 12
+  static void _setNotificationMonthYear(Map<String, dynamic> data) {
+    try {
+      final int? backendMonth = int.tryParse(data['month']?.toString() ?? '');
+
+      final int? notificationYear = int.tryParse(
+        data['year']?.toString() ?? '',
+      );
+
+      debugPrint(
+        'Notification calendar data: '
+        'backendMonth=$backendMonth, '
+        'year=$notificationYear',
+      );
+
+      if (backendMonth == null || notificationYear == null) {
+        debugPrint('Notification month/year missing');
+
+        return;
+      }
+
+      if (backendMonth < 0 || backendMonth > 11) {
+        debugPrint(
+          'Invalid notification backend month: '
+          '$backendMonth',
+        );
+
+        return;
+      }
+
+      final int flutterMonth = backendMonth + 1;
+
+      // --------------------------------------------------------
+      // Set global calendar values
+      // --------------------------------------------------------
+
+      monthNotifier.value = flutterMonth;
+
+      yearNotifier.value = notificationYear;
+
+      debugPrint(
+        'Notification calendar set to: '
+        '$flutterMonth/$notificationYear',
+      );
+    } catch (e, stackTrace) {
+      debugPrint('_setNotificationMonthYear error: $e');
+
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  // ============================================================
   // BOOKING UI
   // ============================================================
 
@@ -666,29 +814,23 @@ class FirebaseNotifications {
     }
 
     try {
+      _prepareNotificationClick(data);
+
       if (isVendor.value) {
+        // Vendor → Bookings
         selectedPageNotifier.value = 1;
 
         bookingStatusNotifier.value = 1;
-
-        final month = int.tryParse(data['month']?.toString() ?? '');
-
-        final year = int.tryParse(data['year']?.toString() ?? '');
-
-        if (month != null) {
-          monthNotifier.value = month + 1;
-        }
-
-        if (year != null) {
-          yearNotifier.value = year;
-        }
       } else {
+        // User → Orders
         selectedPageNotifier.value = 2;
 
         bookingStatusNotifier.value = 1;
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('_updateUIForBooking error: $e');
+
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
@@ -702,29 +844,23 @@ class FirebaseNotifications {
     }
 
     try {
+      _prepareNotificationClick(data);
+
       if (isVendor.value) {
+        // Vendor → Bookings
         selectedPageNotifier.value = 1;
 
         bookingStatusNotifier.value = 3;
-
-        final month = int.tryParse(data['month']?.toString() ?? '');
-
-        final year = int.tryParse(data['year']?.toString() ?? '');
-
-        if (month != null) {
-          monthNotifier.value = month + 1;
-        }
-
-        if (year != null) {
-          yearNotifier.value = year;
-        }
       } else {
+        // User → Orders
         selectedPageNotifier.value = 2;
 
         bookingStatusNotifier.value = 3;
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('_updateUIForCancellation error: $e');
+
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
@@ -739,22 +875,16 @@ class FirebaseNotifications {
 
     debugPrint('Handling NEW BOOKING for vendor');
 
+    // Booking ID + exact calendar month/year.
+    _prepareNotificationClick(data);
+
+    // Vendor Bookings tab.
     selectedPageNotifier.value = 1;
 
+    // New booking status.
     bookingStatusNotifier.value = 1;
 
-    final month = int.tryParse(data['month']?.toString() ?? '');
-
-    final year = int.tryParse(data['year']?.toString() ?? '');
-
-    if (month != null) {
-      monthNotifier.value = month + 1;
-    }
-
-    if (year != null) {
-      yearNotifier.value = year;
-    }
-
+    // Refresh bookings.
     _refreshBookingsData();
   }
 
@@ -769,6 +899,10 @@ class FirebaseNotifications {
 
     debugPrint('Handling BOOKING CONFIRMED for user');
 
+    // Store booking ID and calendar information.
+    _prepareNotificationClick(data);
+
+    // User Orders tab.
     selectedPageNotifier.value = 2;
 
     bookingStatusNotifier.value = 1;
@@ -787,21 +921,14 @@ class FirebaseNotifications {
 
     debugPrint('Handling BOOKING CANCELLED for vendor');
 
+    // Booking ID + exact calendar month/year.
+    _prepareNotificationClick(data);
+
+    // Vendor Bookings tab.
     selectedPageNotifier.value = 1;
 
+    // Cancelled status.
     bookingStatusNotifier.value = 3;
-
-    final month = int.tryParse(data['month']?.toString() ?? '');
-
-    final year = int.tryParse(data['year']?.toString() ?? '');
-
-    if (month != null) {
-      monthNotifier.value = month + 1;
-    }
-
-    if (year != null) {
-      yearNotifier.value = year;
-    }
 
     _refreshBookingsData();
   }
@@ -811,11 +938,40 @@ class FirebaseNotifications {
   // ============================================================
 
   static void _handleNotificationData(Map<String, dynamic> data) {
+    debugPrint('========== NOTIFICATION CLICK ==========');
+
+    debugPrint('FULL DATA: ${jsonEncode(data)}');
+
+    debugPrint('type: ${data['type']}');
+
+    debugPrint(
+      'notificationType: '
+      '${data['notificationType']}',
+    );
+
+    debugPrint(
+      'recipientRole: '
+      '${data['recipientRole']}',
+    );
+
+    debugPrint(
+      'bookingId: '
+      '${data['bookingId']}',
+    );
+
+    debugPrint('id: ${data['id']}');
+
+    debugPrint('month: ${data['month']}');
+
+    debugPrint('year: ${data['year']}');
+
+    debugPrint('========================================');
+
     try {
       debugPrint('Handling notification data: $data');
 
       // --------------------------------------------------------
-      // Extract notification metadata
+      // Extract metadata
       // --------------------------------------------------------
 
       final type = data['type']?.toString();
@@ -834,19 +990,36 @@ class FirebaseNotifications {
         '$recipientRole',
       );
 
+      debugPrint(
+        'Booking ID: '
+        '${data['bookingId'] ?? data['id']}',
+      );
+
       // --------------------------------------------------------
       // BOOKING
       // --------------------------------------------------------
 
       switch (type) {
         case 'booking':
+
+          // ----------------------------------------------------
+          // Vendor → New Booking
+          // ----------------------------------------------------
+
           if (notificationType == 'new_booking' && recipientRole == 'vendor') {
             _handleVendorNewBooking(data);
-          } else if (notificationType == 'booking_confirmed' &&
+          }
+          // ----------------------------------------------------
+          // User → Booking Confirmed
+          // ----------------------------------------------------
+          else if (notificationType == 'booking_confirmed' &&
               recipientRole == 'user') {
             _handleUserBookingConfirmed(data);
-          } else {
-            // Backward compatibility
+          }
+          // ----------------------------------------------------
+          // Backward compatibility
+          // ----------------------------------------------------
+          else {
             _updateUIForBooking(data);
 
             _refreshBookingsData();
@@ -863,7 +1036,6 @@ class FirebaseNotifications {
               recipientRole == 'vendor') {
             _handleVendorBookingCancelled(data);
           } else {
-            // Backward compatibility
             _updateUIForCancellation(data);
 
             _refreshBookingsData();
@@ -1000,6 +1172,11 @@ class FirebaseNotifications {
     _tokenRefreshListenerInitialized = false;
 
     _tokenUpdateInProgress = false;
+
+    _isNotificationClick = false;
+
+    // Clear pending booking.
+    pendingNotificationBookingIdNotifier.value = null;
 
     if (!_notificationClickStreamController.isClosed) {
       _notificationClickStreamController.close();

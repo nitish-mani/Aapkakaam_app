@@ -37,3 +37,5 @@ ValueNotifier<String> otpId1 = ValueNotifier<String>("");
 
 final ValueNotifier<String?> pendingNotificationBookingIdNotifier =
     ValueNotifier<String?>(null);
+final ValueNotifier<Map<String, dynamic>?> pendingNotificationDataNotifier =
+    ValueNotifier<Map<String, dynamic>?>(null);
