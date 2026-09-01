@@ -196,5 +196,29 @@
        aria-label="आ"
        transform="matrix(2.1857682,0,0,2.1857682,23.458168,120.77272)"
        clip-path="url(#clipPath18)" />
+ <g id="tm_mark">
+
+      <circle
+         cx="600"
+         cy="31"
+         r="28"
+         fill="#EEEEE"
+         stroke="#EEEEE"
+         stroke-width="3" />
+
+      <text
+         x="600"
+         y="39"
+         text-anchor="middle"
+         font-size="26"
+         font-family="Arial"
+         font-weight="bold"
+         fill="#EEEEEE">
+        TM
+      </text>
+
+    </g>
+
+
   </g>
 </svg>

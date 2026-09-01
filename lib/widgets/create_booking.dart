@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
-import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -42,6 +41,9 @@ class _CreateBookingState extends State<CreateBooking> {
   List<String> _postOffices = [];
   String? _selectedPost;
 
+  // Language helper
+  String _t(String en, String hi) => isHindiNotifier.value ? hi : en;
+
   @override
   void initState() {
     super.initState();
@@ -72,12 +74,10 @@ class _CreateBookingState extends State<CreateBooking> {
     return DateTime(date.year, date.month, date.day);
   }
 
-  // Convert UTC date to Asia/Kolkata local time
   DateTime _toAsiaKolkataTime(DateTime utcDate) {
     return utcDate.add(const Duration(hours: 5, minutes: 30));
   }
 
-  // Helper method to parse date from various formats and convert to Asia/Kolkata timezone
   DateTime? _parseDateFromBooking(Map<String, dynamic> bookingData) {
     try {
       if (bookingData.containsKey('bookingDate') &&
@@ -102,7 +102,7 @@ class _CreateBookingState extends State<CreateBooking> {
           }
           return DateTime(date.year, date.month, date.day);
         } catch (e) {
-          // Fall through to individual fields
+          // Fall through
         }
       }
 
@@ -175,22 +175,13 @@ class _CreateBookingState extends State<CreateBooking> {
           bookings = [];
         }
 
-        print('Raw bookings count: ${bookings.length}');
-
         final extractedDates = _extractPendingBookingDates(bookings);
         setState(() {
           pendingBookingDates = extractedDates;
         });
         bookingPendingNotifier.value = extractedDates;
-        print('Pending dates found: ${extractedDates.length}');
-        for (var date in extractedDates) {
-          print(
-            'Pending (Asia/Kolkata): ${date.day}/${date.month}/${date.year}',
-          );
-        }
       } else {
         print('Failed to fetch bookings: ${response.statusCode}');
-        print('Response body: ${response.body}');
       }
     } catch (e) {
       debugPrint('Error fetching pending bookings: $e');
@@ -217,17 +208,11 @@ class _CreateBookingState extends State<CreateBooking> {
               !(bookingData['cancelOrder'] ?? false) &&
               !(bookingData['orderCompleted'] ?? false);
 
-          print('Booking ${bookingData['_id']}: isPending=$isPending');
-
           if (isPending) {
             final bookingDate = _parseDateFromBooking(bookingData);
-
             if (bookingDate != null) {
               final normalizedDate = normalizeDate(bookingDate);
               dates.add(normalizedDate);
-              print(
-                'Added pending date: ${normalizedDate.day}/${normalizedDate.month}/${normalizedDate.year}',
-              );
             }
           }
         }
@@ -239,25 +224,22 @@ class _CreateBookingState extends State<CreateBooking> {
   }
 
   Color _getDateBackgroundColor() {
-    return isDarkThemeNotifier.value
-        ? Colors.teal.withOpacity(0.7)
-        : Colors.amber.withOpacity(0.7);
+    final theme = Theme.of(context);
+    return theme.colorScheme.primary.withOpacity(0.3);
   }
 
-  // Custom method to show SnackBar on top of the calendar using Overlay
-  // Custom method to show SnackBar on top of the calendar using Overlay
+  // ============================================================
+  // UPDATED: MODERN SNACKBAR WITH THEME COLORS
+  // ============================================================
+
   void _showCalendarSnackBar(
     String message,
     Color backgroundColor,
     IconData icon,
   ) {
-    // Get the overlay state
     final overlay = Overlay.of(context);
-
-    // Declare overlayEntry first
     late OverlayEntry overlayEntry;
 
-    // Create an overlay entry
     overlayEntry = OverlayEntry(
       builder:
           (context) => Positioned(
@@ -267,28 +249,47 @@ class _CreateBookingState extends State<CreateBooking> {
             child: Material(
               color: Colors.transparent,
               child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
-                  color: backgroundColor,
-                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
+                    colors: [
+                      backgroundColor,
+                      backgroundColor.withOpacity(0.85),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
-                      blurRadius: 10,
+                      color: backgroundColor.withOpacity(0.3),
+                      blurRadius: 20,
                       spreadRadius: 2,
+                      offset: Offset(0, 8),
                     ),
                   ],
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.15),
+                    width: 1,
+                  ),
                 ),
                 child: Row(
                   children: [
-                    Icon(icon, color: Colors.white, size: 24),
+                    Container(
+                      padding: EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, color: Colors.white, size: 22),
+                    ),
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         message,
                         style: TextStyle(
                           color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w600,
                           fontSize: 14,
                         ),
                       ),
@@ -299,7 +300,14 @@ class _CreateBookingState extends State<CreateBooking> {
                           overlayEntry.remove();
                         }
                       },
-                      child: Icon(Icons.close, color: Colors.white, size: 20),
+                      child: Container(
+                        padding: EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.close, color: Colors.white, size: 18),
+                      ),
                     ),
                   ],
                 ),
@@ -308,10 +316,8 @@ class _CreateBookingState extends State<CreateBooking> {
           ),
     );
 
-    // Insert the overlay entry
     overlay.insert(overlayEntry);
 
-    // Auto remove after 3 seconds
     Future.delayed(Duration(seconds: 3), () {
       if (overlayEntry.mounted) {
         overlayEntry.remove();
@@ -319,7 +325,134 @@ class _CreateBookingState extends State<CreateBooking> {
     });
   }
 
+  void _showSuccessSnackbar(BuildContext context, String message) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: primaryColor,
+        content: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.check_circle_outline,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        duration: const Duration(seconds: 3),
+        elevation: 0,
+      ),
+    );
+  }
+
+  void _showErrorSnackbar(BuildContext context, String message) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final errorColor = colorScheme.error;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: errorColor,
+        content: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.error_outline, color: Colors.white, size: 20),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        duration: const Duration(seconds: 3),
+        elevation: 0,
+      ),
+    );
+  }
+
+  void _showInfoSnackbar(BuildContext context, String message) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final infoColor = colorScheme.primaryContainer;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: infoColor,
+        content: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.info_outline, color: Colors.white, size: 20),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.all(MediaQuery.of(context).size.width * 0.04),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        duration: const Duration(seconds: 2),
+        elevation: 0,
+      ),
+    );
+  }
+
   Widget _buildCalendar(MediaQueryData mediaQuery) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenWidth = mediaQuery.size.width;
     final today = normalizeDate(DateTime.now());
@@ -332,8 +465,6 @@ class _CreateBookingState extends State<CreateBooking> {
                 ? pendingDatesFromNotifier
                 : pendingBookingDates;
 
-        print('Calendar rebuilding with ${pendingDates.length} pending dates');
-
         return ValueListenableBuilder(
           valueListenable: selectedDateNotifier,
           builder: (context, selectedDate1, child) {
@@ -343,14 +474,20 @@ class _CreateBookingState extends State<CreateBooking> {
                 if (isLoadingBookings)
                   Padding(
                     padding: const EdgeInsets.all(8.0),
-                    child: CircularProgressIndicator(),
+                    child: CircularProgressIndicator(color: primaryColor),
                   ),
                 Container(
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.grey[800] : Colors.grey[50],
+                    color:
+                        isDark
+                            ? const Color(0xFF1A1A2E)
+                            : const Color(0xFFF8FAFD),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+                      color:
+                          isDark
+                              ? Colors.white.withOpacity(0.06)
+                              : const Color(0xFFE8ECF3),
                       width: 1.5,
                     ),
                   ),
@@ -361,17 +498,18 @@ class _CreateBookingState extends State<CreateBooking> {
                     calendarFormat: _calendarFormat,
                     selectedDayPredicate:
                         (day) => isSameDay(selectedDateNotifier.value, day),
-
                     onDaySelected: (selectedDay, focusedDay) {
                       final isPendingDate = pendingDates.any(
                         (d) => isSameDay(d, selectedDay),
                       );
 
                       if (isPendingDate) {
-                        // Show custom SnackBar on top of calendar
                         _showCalendarSnackBar(
-                          'You cannot select a pending booking date.',
-                          Colors.red,
+                          _t(
+                            'You cannot select a pending booking date.',
+                            'आप लंबित बुकिंग तिथि का चयन नहीं कर सकते।',
+                          ),
+                          colorScheme.error,
                           Icons.warning_amber_rounded,
                         );
                         return;
@@ -382,10 +520,12 @@ class _CreateBookingState extends State<CreateBooking> {
                         _focusedDay = focusedDay;
                       });
 
-                      // Show success message
                       _showCalendarSnackBar(
-                        'Date selected: ${selectedDay.day}/${selectedDay.month}/${selectedDay.year}',
-                        Colors.green,
+                        _t(
+                          'Date selected: ${selectedDay.day}/${selectedDay.month}/${selectedDay.year}',
+                          'तिथि चयनित: ${selectedDay.day}/${selectedDay.month}/${selectedDay.year}',
+                        ),
+                        colorScheme.primary,
                         Icons.check_circle_outline,
                       );
                     },
@@ -409,14 +549,15 @@ class _CreateBookingState extends State<CreateBooking> {
                         color: Colors.transparent,
                       ),
                       selectedDecoration: BoxDecoration(
-                        color:
-                            isDarkThemeNotifier.value
-                                ? Colors.amber
-                                : Colors.teal,
+                        color: primaryColor,
                         shape: BoxShape.circle,
                       ),
-                      todayDecoration: const BoxDecoration(
-                        color: Colors.purple,
+                      todayDecoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [primaryColor, primaryColor.withOpacity(0.7)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -426,29 +567,29 @@ class _CreateBookingState extends State<CreateBooking> {
                       titleTextStyle: TextStyle(
                         fontSize: screenWidth * 0.045,
                         fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.grey[900],
+                        color: isDark ? Colors.white : const Color(0xFF172033),
                       ),
                       leftChevronIcon: Icon(
                         Icons.chevron_left,
                         size: screenWidth * 0.06,
-                        color: isDark ? Colors.white : Colors.grey[900],
+                        color: isDark ? Colors.white : const Color(0xFF4B5563),
                       ),
                       rightChevronIcon: Icon(
                         Icons.chevron_right,
                         size: screenWidth * 0.06,
-                        color: isDark ? Colors.white : Colors.grey[900],
+                        color: isDark ? Colors.white : const Color(0xFF4B5563),
                       ),
                     ),
                     daysOfWeekStyle: DaysOfWeekStyle(
                       weekdayStyle: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: screenWidth * 0.035,
-                        color: isDark ? Colors.grey[300] : Colors.grey[700],
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
                       ),
                       weekendStyle: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: screenWidth * 0.035,
-                        color: isDark ? Colors.grey[300] : Colors.grey[700],
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
                       ),
                     ),
                     calendarBuilders: CalendarBuilders(
@@ -457,7 +598,6 @@ class _CreateBookingState extends State<CreateBooking> {
                           (d) => isSameDay(d, day),
                         );
                         final isToday = isSameDay(day, today);
-
                         final showPendingColor =
                             hasPendingBooking &&
                             !isSameDay(selectedDateNotifier.value, day) &&
@@ -477,9 +617,9 @@ class _CreateBookingState extends State<CreateBooking> {
                             '${day.day}',
                             style: TextStyle(
                               color:
-                                  isDarkThemeNotifier.value
+                                  isDark
                                       ? Colors.white
-                                      : Colors.black,
+                                      : const Color(0xFF172033),
                               fontWeight:
                                   hasPendingBooking
                                       ? FontWeight.bold
@@ -493,29 +633,6 @@ class _CreateBookingState extends State<CreateBooking> {
                         final hasPendingBooking = pendingDates.any(
                           (d) => isSameDay(d, day),
                         );
-                        final isToday = isSameDay(day, today);
-
-                        if (hasPendingBooking && isToday) {
-                          return Container(
-                            margin: const EdgeInsets.all(4.0),
-                            decoration: BoxDecoration(
-                              color: Colors.purple,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: _getDateBackgroundColor(),
-                                width: 3.0,
-                              ),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '${day.day}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          );
-                        }
 
                         if (hasPendingBooking) {
                           return Container(
@@ -524,10 +641,7 @@ class _CreateBookingState extends State<CreateBooking> {
                               color: _getDateBackgroundColor(),
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color:
-                                    isDarkThemeNotifier.value
-                                        ? Colors.amber
-                                        : Colors.teal,
+                                color: primaryColor,
                                 width: 2.0,
                               ),
                             ),
@@ -545,10 +659,7 @@ class _CreateBookingState extends State<CreateBooking> {
                         return Container(
                           margin: const EdgeInsets.all(4.0),
                           decoration: BoxDecoration(
-                            color:
-                                isDarkThemeNotifier.value
-                                    ? Colors.amber
-                                    : Colors.teal,
+                            color: primaryColor,
                             shape: BoxShape.circle,
                           ),
                           alignment: Alignment.center,
@@ -570,33 +681,18 @@ class _CreateBookingState extends State<CreateBooking> {
                           (d) => isSameDay(d, day),
                         );
 
-                        if (isSelected && hasPendingBooking) {
-                          return Container(
-                            margin: const EdgeInsets.all(4.0),
-                            decoration: BoxDecoration(
-                              color: Colors.purple,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: _getDateBackgroundColor(),
-                                width: 3.0,
-                              ),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '${day.day}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          );
-                        }
-
                         if (hasPendingBooking) {
                           return Container(
                             margin: const EdgeInsets.all(4.0),
                             decoration: BoxDecoration(
-                              color: Colors.purple,
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.purple,
+                                  Colors.purple.withOpacity(0.7),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: _getDateBackgroundColor(),
@@ -618,10 +714,7 @@ class _CreateBookingState extends State<CreateBooking> {
                           return Container(
                             margin: const EdgeInsets.all(4.0),
                             decoration: BoxDecoration(
-                              color:
-                                  isDarkThemeNotifier.value
-                                      ? Colors.amber
-                                      : Colors.teal,
+                              color: primaryColor,
                               shape: BoxShape.circle,
                             ),
                             alignment: Alignment.center,
@@ -637,8 +730,15 @@ class _CreateBookingState extends State<CreateBooking> {
 
                         return Container(
                           margin: const EdgeInsets.all(4.0),
-                          decoration: const BoxDecoration(
-                            color: Colors.purple,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.purple,
+                                Colors.purple.withOpacity(0.7),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                             shape: BoxShape.circle,
                           ),
                           alignment: Alignment.center,
@@ -663,8 +763,8 @@ class _CreateBookingState extends State<CreateBooking> {
                     });
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        isDarkThemeNotifier.value ? Colors.teal : Colors.amber,
+                    backgroundColor: primaryColor,
+                    foregroundColor: colorScheme.onPrimary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -672,12 +772,13 @@ class _CreateBookingState extends State<CreateBooking> {
                       horizontal: screenWidth * 0.1,
                       vertical: mediaQuery.size.height * 0.02,
                     ),
+                    elevation: 0,
                   ),
                   child: Text(
-                    'Select Date',
+                    _t('Select Date', 'तिथि चुनें'),
                     style: TextStyle(
                       fontSize: screenWidth * 0.04,
-                      color: Colors.white,
+                      color: colorScheme.onPrimary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -698,15 +799,19 @@ class _CreateBookingState extends State<CreateBooking> {
     IconData? icon,
     TextInputType keyboardType = TextInputType.text,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenWidth = mediaQuery.size.width;
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[800] : Colors.grey[50],
+        color: isDark ? const Color(0xFF252540) : const Color(0xFFF8FAFD),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+          color:
+              isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFE8ECF3),
           width: 1.5,
         ),
       ),
@@ -716,20 +821,26 @@ class _CreateBookingState extends State<CreateBooking> {
         keyboardType: keyboardType,
         style: TextStyle(
           fontSize: screenWidth * 0.04,
-          color: isDark ? Colors.white : Colors.grey[900],
+          color: isDark ? Colors.white : const Color(0xFF172033),
+          fontWeight: FontWeight.w500,
         ),
         decoration: InputDecoration(
-          labelText: label,
+          labelText: _t(label, _getHindiLabel(label)),
           labelStyle: TextStyle(
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
+            color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
             fontSize: screenWidth * 0.035,
+            fontWeight: FontWeight.w600,
           ),
           prefixIcon:
               icon != null
-                  ? Icon(
-                    icon,
-                    color: isDark ? Colors.grey[400] : Colors.grey[600],
-                    size: 22,
+                  ? Container(
+                    margin: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: primaryColor.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(icon, color: primaryColor, size: 20),
                   )
                   : null,
           border: InputBorder.none,
@@ -737,12 +848,31 @@ class _CreateBookingState extends State<CreateBooking> {
             horizontal: screenWidth * 0.04,
             vertical: mediaQuery.size.height * 0.018,
           ),
+          focusedBorder: InputBorder.none,
+          enabledBorder: InputBorder.none,
         ),
+        cursorColor: primaryColor,
       ),
     );
   }
 
+  String _getHindiLabel(String label) {
+    final map = {
+      'Name': 'नाम',
+      'Mobile Number': 'मोबाइल नंबर',
+      'Village': 'गाँव',
+      'District': 'जिला',
+      'State': 'राज्य',
+      'Pincode': 'पिनकोड',
+      'Booking Date': 'बुकिंग तिथि',
+    };
+    return map[label] ?? label;
+  }
+
   Widget _buildDateField(BuildContext context, MediaQueryData mediaQuery) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenWidth = mediaQuery.size.width;
 
@@ -753,10 +883,13 @@ class _CreateBookingState extends State<CreateBooking> {
 
         return Container(
           decoration: BoxDecoration(
-            color: isDark ? Colors.grey[800] : Colors.grey[50],
+            color: isDark ? const Color(0xFF252540) : const Color(0xFFF8FAFD),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+              color:
+                  isDark
+                      ? Colors.white.withOpacity(0.06)
+                      : const Color(0xFFE8ECF3),
               width: 1.5,
             ),
           ),
@@ -765,18 +898,28 @@ class _CreateBookingState extends State<CreateBooking> {
             readOnly: true,
             style: TextStyle(
               fontSize: screenWidth * 0.04,
-              color: isDark ? Colors.white : Colors.grey[900],
+              color: isDark ? Colors.white : const Color(0xFF172033),
+              fontWeight: FontWeight.w500,
             ),
             decoration: InputDecoration(
-              labelText: 'Booking Date',
+              labelText: _t('Booking Date', 'बुकिंग तिथि'),
               labelStyle: TextStyle(
-                color: isDark ? Colors.grey[400] : Colors.grey[600],
+                color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
                 fontSize: screenWidth * 0.035,
+                fontWeight: FontWeight.w600,
               ),
-              prefixIcon: Icon(
-                Icons.calendar_today_outlined,
-                color: isDark ? Colors.grey[400] : Colors.grey[600],
-                size: 22,
+              prefixIcon: Container(
+                margin: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: primaryColor.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.calendar_today_outlined,
+                  color: primaryColor,
+                  size: 20,
+                ),
               ),
               suffixIcon:
                   isLoadingBookings
@@ -785,9 +928,9 @@ class _CreateBookingState extends State<CreateBooking> {
                         child: SizedBox(
                           width: screenWidth * 0.05,
                           height: screenWidth * 0.05,
-                          child: const CircularProgressIndicator(
+                          child: CircularProgressIndicator(
                             strokeWidth: 2.5,
-                            color: Colors.blue,
+                            color: primaryColor,
                           ),
                         ),
                       )
@@ -801,16 +944,14 @@ class _CreateBookingState extends State<CreateBooking> {
                 horizontal: screenWidth * 0.04,
                 vertical: mediaQuery.size.height * 0.018,
               ),
+              focusedBorder: InputBorder.none,
+              enabledBorder: InputBorder.none,
             ),
+            cursorColor: primaryColor,
             onTap: () {
-              // IMPORTANT:
-              // Hide the keyboard before opening the calendar.
               FocusScope.of(context).unfocus();
-
-              // Wait for keyboard dismissal/layout update.
               Future.delayed(const Duration(milliseconds: 200), () {
                 if (!mounted) return;
-
                 _showCalendarDialog(MediaQuery.of(context));
               });
             },
@@ -831,12 +972,8 @@ class _CreateBookingState extends State<CreateBooking> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (dialogContext, setDialogState) {
-            // Get the CURRENT MediaQuery inside the dialog.
             final dialogMediaQuery = MediaQuery.of(dialogContext);
-
             final availableHeight = dialogMediaQuery.size.height;
-
-            // Keep dialog inside the available screen height.
             final maxDialogHeight = availableHeight * 0.90;
 
             return Dialog(
@@ -847,60 +984,55 @@ class _CreateBookingState extends State<CreateBooking> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
-              backgroundColor: isDark ? Colors.grey[900] : Colors.white,
+              backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
               elevation: 8,
-
               child: ConstrainedBox(
                 constraints: BoxConstraints(
                   maxHeight: maxDialogHeight,
                   maxWidth: screenWidth * 0.90,
                 ),
-
                 child: Padding(
                   padding: EdgeInsets.all(screenWidth * 0.04),
-
                   child: SingleChildScrollView(
                     physics: const ClampingScrollPhysics(),
-
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // =====================================================
-                        // CALENDAR ICON
-                        // =====================================================
                         Center(
                           child: Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
+                              gradient: LinearGradient(
+                                colors: [
+                                  Theme.of(context).colorScheme.primary,
+                                  Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withOpacity(0.7),
+                                ],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.green.withOpacity(0.3),
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withOpacity(0.3),
                                   blurRadius: 20,
                                   spreadRadius: 5,
                                 ),
                               ],
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.calendar_month_outlined,
-                              color: Colors.white,
+                              color: Theme.of(context).colorScheme.onPrimary,
                               size: 28,
                             ),
                           ),
                         ),
-
                         SizedBox(height: screenWidth * 0.04),
-
-                        // =====================================================
-                        // TITLE
-                        // =====================================================
                         Text(
-                          'Select Booking Date',
+                          _t('Select Booking Date', 'बुकिंग तिथि चुनें'),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: screenWidth * 0.05,
@@ -909,14 +1041,12 @@ class _CreateBookingState extends State<CreateBooking> {
                             letterSpacing: 0.5,
                           ),
                         ),
-
                         SizedBox(height: screenWidth * 0.02),
-
-                        // =====================================================
-                        // SUBTITLE
-                        // =====================================================
                         Text(
-                          'Choose a date for your booking',
+                          _t(
+                            'Choose a date for your booking',
+                            'अपनी बुकिंग के लिए तिथि चुनें',
+                          ),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: screenWidth * 0.035,
@@ -924,24 +1054,17 @@ class _CreateBookingState extends State<CreateBooking> {
                             letterSpacing: 0.3,
                           ),
                         ),
-
                         SizedBox(height: screenWidth * 0.04),
-
-                        // =====================================================
-                        // CALENDAR
-                        // =====================================================
                         _buildCalendar(dialogMediaQuery),
-
                         SizedBox(height: screenWidth * 0.03),
-
-                        // =====================================================
-                        // LEGEND
-                        // =====================================================
                         Container(
                           width: double.infinity,
                           padding: EdgeInsets.all(screenWidth * 0.03),
                           decoration: BoxDecoration(
-                            color: isDark ? Colors.grey[800] : Colors.grey[50],
+                            color:
+                                isDark
+                                    ? const Color(0xFF252540)
+                                    : Colors.grey[50],
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Wrap(
@@ -949,106 +1072,25 @@ class _CreateBookingState extends State<CreateBooking> {
                             runSpacing: screenWidth * 0.025,
                             alignment: WrapAlignment.center,
                             children: [
-                              // -------------------------
-                              // Today
-                              // -------------------------
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: screenWidth * 0.05,
-                                    height: screenWidth * 0.05,
-                                    decoration: const BoxDecoration(
-                                      color: Colors.purple,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-
-                                  SizedBox(width: screenWidth * 0.02),
-
-                                  Text(
-                                    'Today',
-                                    style: TextStyle(
-                                      fontSize: screenWidth * 0.035,
-                                      color:
-                                          isDark
-                                              ? Colors.grey[300]
-                                              : Colors.grey[700],
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
+                              _buildLegendItem(
+                                Colors.purple,
+                                _t('Today', 'आज'),
+                                screenWidth,
                               ),
-
-                              // -------------------------
-                              // Pending Booking
-                              // -------------------------
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: screenWidth * 0.05,
-                                    height: screenWidth * 0.05,
-                                    decoration: BoxDecoration(
-                                      color: _getDateBackgroundColor(),
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-
-                                  SizedBox(width: screenWidth * 0.02),
-
-                                  Text(
-                                    'Pending Booking',
-                                    style: TextStyle(
-                                      fontSize: screenWidth * 0.035,
-                                      color:
-                                          isDark
-                                              ? Colors.grey[300]
-                                              : Colors.grey[700],
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
+                              _buildLegendItem(
+                                _getDateBackgroundColor(),
+                                _t('Pending Booking', 'लंबित बुकिंग'),
+                                screenWidth,
                               ),
-
-                              // -------------------------
-                              // Today + Pending
-                              // -------------------------
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: screenWidth * 0.05,
-                                    height: screenWidth * 0.05,
-                                    decoration: BoxDecoration(
-                                      color: Colors.purple,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: _getDateBackgroundColor(),
-                                        width: 3.0,
-                                      ),
-                                    ),
-                                  ),
-
-                                  SizedBox(width: screenWidth * 0.02),
-
-                                  Text(
-                                    'Today + Pending',
-                                    style: TextStyle(
-                                      fontSize: screenWidth * 0.035,
-                                      color:
-                                          isDark
-                                              ? Colors.grey[300]
-                                              : Colors.grey[700],
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
+                              _buildLegendItemWithBorder(
+                                Colors.purple,
+                                _getDateBackgroundColor(),
+                                _t('Today + Pending', 'आज + लंबित'),
+                                screenWidth,
                               ),
                             ],
                           ),
                         ),
-
                         SizedBox(height: screenWidth * 0.04),
                       ],
                     ),
@@ -1062,66 +1104,62 @@ class _CreateBookingState extends State<CreateBooking> {
     );
   }
 
-  Widget _buildPincodeField(MediaQueryData mediaQuery) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final screenWidth = mediaQuery.size.width;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? Colors.grey[800] : Colors.grey[50],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
-          width: 1.5,
+  Widget _buildLegendItem(Color color, String label, double screenWidth) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: screenWidth * 0.05,
+          height: screenWidth * 0.05,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-      ),
-      child: TextField(
-        controller: _pincodeController,
-        focusNode: _pincodeFocusNode,
-        keyboardType: TextInputType.number,
-        maxLength: 6,
-        style: TextStyle(
-          fontSize: screenWidth * 0.04,
-          color: isDark ? Colors.white : Colors.grey[900],
-        ),
-        decoration: InputDecoration(
-          labelText: 'Pincode',
-          labelStyle: TextStyle(
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
+        SizedBox(width: screenWidth * 0.02),
+        Text(
+          label,
+          style: TextStyle(
             fontSize: screenWidth * 0.035,
-          ),
-          prefixIcon: Icon(
-            Icons.pin_drop_outlined,
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
-            size: 22,
-          ),
-          counterText: '',
-          suffixIcon:
-              _isLoading1
-                  ? Padding(
-                    padding: EdgeInsets.all(screenWidth * 0.02),
-                    child: SizedBox(
-                      width: screenWidth * 0.05,
-                      height: screenWidth * 0.05,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: Colors.blue,
-                      ),
-                    ),
-                  )
-                  : null,
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: screenWidth * 0.04,
-            vertical: mediaQuery.size.height * 0.018,
+            color:
+                Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[300]
+                    : Colors.grey[700],
+            fontWeight: FontWeight.w500,
           ),
         ),
-        onChanged: (value) {
-          if (value.length == 6) {
-            _fetchAddressByPincode(value);
-          }
-        },
-      ),
+      ],
+    );
+  }
+
+  Widget _buildLegendItemWithBorder(
+    Color color,
+    Color borderColor,
+    String label,
+    double screenWidth,
+  ) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: screenWidth * 0.05,
+          height: screenWidth * 0.05,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: borderColor, width: 3.0),
+          ),
+        ),
+        SizedBox(width: screenWidth * 0.02),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: screenWidth * 0.035,
+            color:
+                Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[300]
+                    : Colors.grey[700],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 
@@ -1134,81 +1172,226 @@ class _CreateBookingState extends State<CreateBooking> {
     });
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final isVendor1 = isVendor.value;
+      final category = isVendor1 ? 'vendor' : 'user';
+      final categoryData = prefs.getString(category);
+
+      if (categoryData == null) {
+        setState(
+          () =>
+              _errorMessage = _t(
+                'User data not found',
+                'उपयोगकर्ता डेटा नहीं मिला',
+              ),
+        );
+        return;
+      }
+
+      final decoded = jsonDecode(categoryData);
       final response = await http
-          .get(Uri.parse('https://api.postalpincode.in/pincode/$pincode'))
+          .post(
+            Uri.parse(
+              '${KConstantURL.url}/pincode/${category == 'user' ? 'getU' : 'getV'}',
+            ),
+            headers: {
+              "Authorization": 'Bearer ${decoded['token']}',
+              "Content-Type": "application/json",
+            },
+            body: jsonEncode({'pincode': pincode}),
+          )
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data[0]['Status'] == 'Success') {
-          final postOfficeList = data[0]['PostOffice'];
-          setState(() {
-            _districtController.text = postOfficeList[0]['District'] ?? '';
-            _stateController.text = postOfficeList[0]['State'] ?? '';
-            _postOffices = List<String>.from(
-              postOfficeList.map((po) => po['Name'] as String),
-            );
-            _selectedPost = _postOffices.isNotEmpty ? _postOffices.first : null;
-            _isLoading1 = false;
-          });
-        } else {
-          setState(() {
-            _errorMessage = 'Invalid pincode';
-            _districtController.clear();
-            _stateController.clear();
-            _postOffices.clear();
-          });
-        }
+        final result = jsonDecode(response.body)['data'];
+        final offices = result['offices'] ?? [];
+
+        final cleanedOffices = List<Map<String, dynamic>>.from(
+          offices.map((office) {
+            final name =
+                office['officename']
+                    ?.replaceAll(RegExp(r'\s(BO|SO|HO)$'), '')
+                    ?.toUpperCase();
+            return {'Name': name, 'original': office};
+          }),
+        );
+
+        final allOffices = [
+          {'Name': _t('Select Post Office', 'पोस्ट ऑफिस चुनें')},
+          ...cleanedOffices,
+        ];
+
+        setState(() {
+          _districtController.text = offices[0]?['district'] ?? '';
+          _stateController.text = offices[0]?['statename'] ?? '';
+          _postOffices = allOffices.map((e) => e['Name'] as String).toList();
+          _selectedPost = _postOffices.isNotEmpty ? _postOffices.first : null;
+          _isLoading1 = false;
+        });
       } else {
-        setState(() => _errorMessage = 'Failed to fetch address');
+        setState(() {
+          _errorMessage = _t('Enter Valid Pincode', 'सही पिनकोड डालें');
+          _districtController.clear();
+          _stateController.clear();
+          _postOffices.clear();
+          _isLoading1 = false;
+        });
       }
     } catch (e) {
-      setState(() => _errorMessage = 'Network error: ${e.toString()}');
-    } finally {
-      setState(() => _isLoading1 = false);
+      setState(() {
+        _errorMessage =
+            _t('Network error: ', 'नेटवर्क त्रुटि: ') + e.toString();
+        _isLoading1 = false;
+      });
     }
   }
 
-  Widget _buildPostDropdown(MediaQueryData mediaQuery) {
+  Widget _buildPincodeField(MediaQueryData mediaQuery) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenWidth = mediaQuery.size.width;
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[800] : Colors.grey[50],
+        color: isDark ? const Color(0xFF252540) : const Color(0xFFF8FAFD),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+          color:
+              isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFE8ECF3),
           width: 1.5,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.1 : 0.03),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: _pincodeController,
+        focusNode: _pincodeFocusNode,
+        keyboardType: TextInputType.number,
+        maxLength: 6,
+        style: TextStyle(
+          fontSize: screenWidth * 0.04,
+          color: isDark ? Colors.white : const Color(0xFF172033),
+          fontWeight: FontWeight.w500,
+        ),
+        decoration: InputDecoration(
+          labelText: _t('Pincode', 'पिनकोड'),
+          labelStyle: TextStyle(
+            color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
+            fontSize: screenWidth * 0.035,
+            fontWeight: FontWeight.w600,
+          ),
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(Icons.pin_drop_outlined, color: primaryColor, size: 20),
+          ),
+          counterText: '',
+          suffixIcon:
+              _isLoading1
+                  ? Padding(
+                    padding: EdgeInsets.all(screenWidth * 0.02),
+                    child: SizedBox(
+                      width: screenWidth * 0.05,
+                      height: screenWidth * 0.05,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: primaryColor,
+                      ),
+                    ),
+                  )
+                  : null,
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: screenWidth * 0.04,
+            vertical: mediaQuery.size.height * 0.018,
+          ),
+          focusedBorder: InputBorder.none,
+          enabledBorder: InputBorder.none,
+        ),
+        cursorColor: primaryColor,
+        onChanged: (value) {
+          if (value.length == 6) {
+            _fetchAddressByPincode(value);
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildPostDropdown(MediaQueryData mediaQuery) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenWidth = mediaQuery.size.width;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF252540) : const Color(0xFFF8FAFD),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color:
+              isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFE8ECF3),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.1 : 0.03),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: DropdownButtonFormField<String>(
         value: _selectedPost,
-        dropdownColor: isDark ? Colors.grey[800] : Colors.white,
+        dropdownColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
         style: TextStyle(
           fontSize: screenWidth * 0.04,
-          color: isDark ? Colors.white : Colors.grey[900],
+          color: isDark ? Colors.white : const Color(0xFF172033),
+          fontWeight: FontWeight.w500,
         ),
         decoration: InputDecoration(
-          labelText: 'Post Office',
+          labelText: _t('Post Office', 'पोस्ट ऑफिस'),
           labelStyle: TextStyle(
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
+            color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
             fontSize: screenWidth * 0.035,
+            fontWeight: FontWeight.w600,
           ),
-          prefixIcon: Icon(
-            Icons.local_post_office_outlined,
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
-            size: 22,
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.local_post_office_outlined,
+              color: primaryColor,
+              size: 20,
+            ),
           ),
           border: InputBorder.none,
           contentPadding: EdgeInsets.symmetric(
             horizontal: screenWidth * 0.04,
             vertical: mediaQuery.size.height * 0.01,
           ),
+          focusedBorder: InputBorder.none,
+          enabledBorder: InputBorder.none,
         ),
         icon: Icon(
           Icons.keyboard_arrow_down_rounded,
-          color: isDark ? Colors.grey[400] : Colors.grey[600],
+          color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
         ),
         items:
             _postOffices
@@ -1217,7 +1400,10 @@ class _CreateBookingState extends State<CreateBooking> {
                     value: post,
                     child: Text(
                       post,
-                      style: TextStyle(fontSize: screenWidth * 0.04),
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.04,
+                        color: isDark ? Colors.white : const Color(0xFF172033),
+                      ),
                     ),
                   ),
                 )
@@ -1228,6 +1414,9 @@ class _CreateBookingState extends State<CreateBooking> {
   }
 
   Widget _buildActionButtons(BuildContext context, MediaQueryData mediaQuery) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenWidth = mediaQuery.size.width;
 
@@ -1236,25 +1425,28 @@ class _CreateBookingState extends State<CreateBooking> {
         Expanded(
           child: TextButton(
             style: TextButton.styleFrom(
-              foregroundColor: Colors.grey[600],
+              foregroundColor: isDark ? Colors.grey[400] : Colors.grey[600],
               padding: EdgeInsets.symmetric(
                 vertical: mediaQuery.size.height * 0.018,
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
                 side: BorderSide(
-                  color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
+                  color:
+                      isDark
+                          ? Colors.white.withOpacity(0.1)
+                          : const Color(0xFFE8ECF3),
                   width: 1.5,
                 ),
               ),
             ),
             onPressed: _isLoading ? null : () => Navigator.pop(context),
             child: Text(
-              'Cancel',
+              _t('Cancel', 'रद्द करें'),
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: screenWidth * 0.04,
-                color: isDark ? Colors.grey[400] : Colors.grey[700],
+                color: isDark ? Colors.grey[400] : Colors.grey[600],
               ),
             ),
           ),
@@ -1267,37 +1459,42 @@ class _CreateBookingState extends State<CreateBooking> {
                     ? null
                     : () => _submitCreatedBooking(context: context),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
+              backgroundColor: primaryColor,
+              foregroundColor: colorScheme.onPrimary,
               padding: EdgeInsets.symmetric(
                 vertical: mediaQuery.size.height * 0.018,
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              elevation: 2,
-              shadowColor: Colors.blue.withOpacity(0.3),
+              elevation: 0,
+              shadowColor: primaryColor.withOpacity(0.3),
             ),
             child:
                 _isLoading
                     ? SizedBox(
                       width: screenWidth * 0.05,
                       height: screenWidth * 0.05,
-                      child: const CircularProgressIndicator(
-                        color: Colors.white,
+                      child: CircularProgressIndicator(
+                        color: colorScheme.onPrimary,
                         strokeWidth: 2.5,
                       ),
                     )
                     : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.check_circle_outline, size: 20),
+                        Icon(
+                          Icons.check_circle_outline,
+                          size: 20,
+                          color: colorScheme.onPrimary,
+                        ),
                         const SizedBox(width: 8),
                         Text(
-                          'Book Now',
+                          _t('Book Now', 'अभी बुक करें'),
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: screenWidth * 0.04,
+                            color: colorScheme.onPrimary,
                           ),
                         ),
                       ],
@@ -1309,27 +1506,40 @@ class _CreateBookingState extends State<CreateBooking> {
   }
 
   Future<void> _submitCreatedBooking({required BuildContext context}) async {
-    // Validation
     if (_nameController.text.isEmpty ||
         _numberController.text.isEmpty ||
         _villageController.text.isEmpty ||
         _districtController.text.isEmpty ||
         _stateController.text.isEmpty ||
         _pincodeController.text.isEmpty) {
-      _showErrorSnackbar(context, 'Please fill all fields');
+      _showErrorSnackbar(
+        context,
+        _t('Please fill all fields', 'कृपया सभी फील्ड भरें'),
+      );
       return;
     }
     if (_numberController.text.length != 10) {
-      _showErrorSnackbar(context, 'Please enter a valid mobile number');
+      _showErrorSnackbar(
+        context,
+        _t(
+          'Please enter a valid mobile number',
+          'कृपया सही मोबाइल नंबर दर्ज करें',
+        ),
+      );
       return;
     }
 
-    // Check if selected date has pending booking
     final isPendingDate = pendingBookingDates.any(
       (d) => isSameDay(d, selectedDateNotifier.value),
     );
     if (isPendingDate) {
-      _showErrorSnackbar(context, 'You cannot book on a pending booking date.');
+      _showErrorSnackbar(
+        context,
+        _t(
+          'You cannot book on a pending booking date.',
+          'आप लंबित बुकिंग तिथि पर बुक नहीं कर सकते।',
+        ),
+      );
       return;
     }
 
@@ -1350,11 +1560,9 @@ class _CreateBookingState extends State<CreateBooking> {
       final userId = decoded['vendorId'];
       final jobType = decoded['type'];
 
-      // Format date for API
       final bookingDate = selectedDateNotifier.value.toString().split(' ')[0];
       final now = selectedDateNotifier.value;
 
-      // Single API call - combined booking creation and confirmation
       final response = await http
           .post(
             Uri.parse("${KConstantURL.url}/bookings/postToBookingsV"),
@@ -1383,15 +1591,9 @@ class _CreateBookingState extends State<CreateBooking> {
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = jsonDecode(response.body);
+        // final responseData = jsonDecode(response.body);
+        _showSuccessSnackbar(context, _t('Booking successful!', 'बुकिंग सफल!'));
 
-        // Show success message
-        _showSuccessSnackbar(
-          context,
-          responseData['message'] ?? 'Booking successful!',
-        );
-
-        // Reset form fields after delay
         Future.delayed(const Duration(seconds: 1), () {
           if (mounted) {
             setState(() {
@@ -1408,11 +1610,12 @@ class _CreateBookingState extends State<CreateBooking> {
           }
         });
 
-        // Refresh pending bookings
         await _fetchPendingBookings();
       } else {
         final errorData = jsonDecode(response.body);
-        throw Exception(errorData['message'] ?? 'Booking failed');
+        throw Exception(
+          errorData['message'] ?? _t('Booking failed', 'बुकिंग विफल'),
+        );
       }
     } catch (e) {
       _showErrorSnackbar(context, e.toString().replaceFirst('Exception: ', ''));
@@ -1430,77 +1633,33 @@ class _CreateBookingState extends State<CreateBooking> {
     return str.isNotEmpty ? str[0].toUpperCase() + str.substring(1) : str;
   }
 
-  void _showSuccessSnackbar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.green,
-        content: Row(
-          children: [
-            Icon(Icons.check_circle_outline, color: Colors.white),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        margin: EdgeInsets.all(MediaQuery.of(context).size.width * 0.05),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
-  void _showErrorSnackbar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.red,
-        content: Row(
-          children: [
-            Icon(Icons.error_outline, color: Colors.white),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        margin: EdgeInsets.all(MediaQuery.of(context).size.width * 0.05),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
+    final surface = colorScheme.surface;
+    final onSurface = colorScheme.onSurface;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mediaQuery = MediaQuery.of(context);
     final screenWidth = mediaQuery.size.width;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Book Now',
+        title: Text(
+          _t('Book Now', 'अभी बुक करें'),
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
         ),
-        backgroundColor: isDarkThemeNotifier.value ? Colors.teal : Colors.amber,
+        backgroundColor: primaryColor,
+        foregroundColor: colorScheme.onPrimary,
         centerTitle: true,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: Colors.white, size: 22),
+          icon: Icon(
+            Icons.arrow_back_ios,
+            color: colorScheme.onPrimary,
+            size: 22,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -1510,11 +1669,7 @@ class _CreateBookingState extends State<CreateBooking> {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [
-                (isDarkThemeNotifier.value ? Colors.teal : Colors.amber)
-                    .withOpacity(0.1),
-                Colors.transparent,
-              ],
+              colors: [primaryColor.withOpacity(0.06), Colors.transparent],
             ),
           ),
           child: Padding(
@@ -1528,41 +1683,47 @@ class _CreateBookingState extends State<CreateBooking> {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF2196F3), Color(0xFF1565C0)],
+                          gradient: LinearGradient(
+                            colors: [
+                              primaryColor,
+                              primaryColor.withOpacity(0.7),
+                            ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.blue.withOpacity(0.3),
+                              color: primaryColor.withOpacity(0.3),
                               blurRadius: 20,
                               spreadRadius: 5,
                             ),
                           ],
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.book_online_outlined,
-                          color: Colors.white,
+                          color: colorScheme.onPrimary,
                           size: 32,
                         ),
                       ),
                     ),
                     SizedBox(height: mediaQuery.size.height * 0.015),
                     Text(
-                      'Create New Booking',
+                      _t('Create New Booking', 'नई बुकिंग बनाएं'),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: screenWidth * 0.055,
                         fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : Colors.grey[900],
+                        color: isDark ? Colors.white : onSurface,
                         letterSpacing: 0.5,
                       ),
                     ),
                     SizedBox(height: mediaQuery.size.height * 0.005),
                     Text(
-                      'Fill in the details to book your service',
+                      _t(
+                        'Fill in the details to book your service',
+                        'अपनी सेवा बुक करने के लिए विवरण भरें',
+                      ),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: screenWidth * 0.035,
@@ -1575,10 +1736,10 @@ class _CreateBookingState extends State<CreateBooking> {
                       Container(
                         padding: EdgeInsets.all(screenWidth * 0.03),
                         decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.1),
+                          color: Colors.red.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: Colors.red.withOpacity(0.3),
+                            color: Colors.red.withOpacity(0.2),
                           ),
                         ),
                         child: Row(
@@ -1605,14 +1766,14 @@ class _CreateBookingState extends State<CreateBooking> {
                     if (_errorMessage.isNotEmpty)
                       SizedBox(height: mediaQuery.size.height * 0.02),
                     _buildTextField(
-                      'Name',
+                      _t('Name', 'नाम'),
                       _nameController,
                       mediaQuery,
                       icon: Icons.person_outline,
                     ),
                     SizedBox(height: mediaQuery.size.height * 0.015),
                     _buildTextField(
-                      'Mobile Number',
+                      _t('Mobile Number', 'मोबाइल नंबर'),
                       _numberController,
                       mediaQuery,
                       icon: Icons.phone_outlined,
@@ -1620,7 +1781,7 @@ class _CreateBookingState extends State<CreateBooking> {
                     ),
                     SizedBox(height: mediaQuery.size.height * 0.015),
                     _buildTextField(
-                      'Village',
+                      _t('Village', 'गाँव'),
                       _villageController,
                       mediaQuery,
                       icon: Icons.house_outlined,
@@ -1635,7 +1796,7 @@ class _CreateBookingState extends State<CreateBooking> {
                       SizedBox(height: mediaQuery.size.height * 0.015),
                     ],
                     _buildTextField(
-                      'District',
+                      _t('District', 'जिला'),
                       _districtController,
                       mediaQuery,
                       readOnly: true,
@@ -1643,7 +1804,7 @@ class _CreateBookingState extends State<CreateBooking> {
                     ),
                     SizedBox(height: mediaQuery.size.height * 0.015),
                     _buildTextField(
-                      'State',
+                      _t('State', 'राज्य'),
                       _stateController,
                       mediaQuery,
                       readOnly: true,
@@ -1651,8 +1812,6 @@ class _CreateBookingState extends State<CreateBooking> {
                     ),
                     SizedBox(height: mediaQuery.size.height * 0.03),
                     _buildActionButtons(context, mediaQuery),
-                    SizedBox(height: mediaQuery.size.height * 0.02),
-                    Center(child: BannerAdWidget()),
                   ],
                 ),
               ),

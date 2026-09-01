@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 class Leave {
   final String id;
@@ -24,12 +25,10 @@ class Leave {
   });
 
   factory Leave.fromJson(Map<String, dynamic> json) {
-    // Parse UTC dates and convert to IST (UTC+5:30)
     DateTime parseDate(dynamic value) {
       if (value == null) return DateTime.now();
       try {
         DateTime utcDate = DateTime.parse(value.toString());
-        // Convert to IST (Asia/Kolkata) - Add 5 hours 30 minutes
         return utcDate.add(const Duration(hours: 5, minutes: 30));
       } catch (e) {
         return DateTime.now();
@@ -74,14 +73,26 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
   bool _isSubmitting = false;
   late AnimationController _animationController;
 
+  // Language helper
+  String _t(String en, String hi) => isHindiNotifier.value ? hi : en;
+
   @override
   void initState() {
     super.initState();
+    _initializeDateFormatting();
     _fetchLeaves();
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
+  }
+
+  void _initializeDateFormatting() {
+    try {
+      initializeDateFormatting('hi', null);
+    } catch (e) {
+      print('Locale initialization error: $e');
+    }
   }
 
   @override
@@ -126,16 +137,30 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
           });
         }
       } else {
-        _showMessage('Failed to load leaves', Colors.red);
+        _showMessage(
+          _t('Failed to load leaves', 'छुट्टियाँ लोड करने में विफल'),
+          Colors.red,
+        );
       }
     } catch (e) {
-      _showMessage('Error loading leaves', Colors.red);
+      _showMessage(
+        _t('Error loading leaves', 'छुट्टियाँ लोड करने में त्रुटि'),
+        Colors.red,
+      );
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
   Future<void> _cancelLeave(String leaveId) async {
+    if (leaveId.isEmpty) {
+      _showMessage(
+        _t('Leave ID is required', 'छुट्टी आईडी आवश्यक है'),
+        Colors.red,
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
@@ -146,6 +171,10 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
 
       if (categoryData == null) {
         setState(() => _isSubmitting = false);
+        _showMessage(
+          _t('User data not found', 'उपयोगकर्ता डेटा नहीं मिला'),
+          Colors.red,
+        );
         return;
       }
 
@@ -163,27 +192,47 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        _showMessage('Leave cancelled successfully', Colors.green);
+        final data = jsonDecode(response.body);
+        _showMessage(
+          data['message'] ??
+              _t(
+                'Leave cancelled successfully',
+                'छुट्टी सफलतापूर्वक रद्द की गई',
+              ),
+          Colors.green,
+        );
         await _fetchLeaves();
       } else {
         try {
           final errorData = jsonDecode(response.body);
           _showMessage(
-            errorData['message'] ?? 'Failed to cancel leave',
+            errorData['message'] ??
+                _t('Failed to cancel leave', 'छुट्टी रद्द करने में विफल'),
             Colors.red,
           );
         } catch (e) {
-          _showMessage('Failed to cancel leave', Colors.red);
+          _showMessage(
+            _t('Failed to cancel leave', 'छुट्टी रद्द करने में विफल'),
+            Colors.red,
+          );
         }
       }
     } catch (e) {
-      _showMessage('Error cancelling leave', Colors.red);
+      _showMessage(
+        _t('Error cancelling leave', 'छुट्टी रद्द करने में त्रुटि'),
+        Colors.red,
+      );
     } finally {
       setState(() => _isSubmitting = false);
     }
   }
 
-  Future<void> _createLeave(DateTime from, DateTime to, String? reason) async {
+  Future<void> _createLeave(
+    DateTime from,
+    DateTime to,
+    String? reason,
+    color,
+  ) async {
     setState(() => _isSubmitting = true);
 
     try {
@@ -216,21 +265,34 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _showMessage('Leave created successfully! 🎉', Colors.green);
+        _showMessage(
+          _t(
+            'Leave created successfully! 🎉',
+            'छुट्टी सफलतापूर्वक बनाई गई! 🎉',
+          ),
+          color,
+        );
         await _fetchLeaves();
       } else {
         try {
           final errorData = jsonDecode(response.body);
           _showMessage(
-            errorData['message'] ?? 'Failed to process request',
+            errorData['message'] ??
+                _t('Failed to process request', 'अनुरोध संसाधित करने में विफल'),
             Colors.red,
           );
         } catch (e) {
-          _showMessage('Failed to process request', Colors.red);
+          _showMessage(
+            _t('Failed to process request', 'अनुरोध संसाधित करने में विफल'),
+            Colors.red,
+          );
         }
       }
     } catch (e) {
-      _showMessage('Error creating leave', Colors.red);
+      _showMessage(
+        _t('Error creating leave', 'छुट्टी बनाने में त्रुटि'),
+        Colors.red,
+      );
     } finally {
       setState(() => _isSubmitting = false);
     }
@@ -269,26 +331,37 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
   }
 
   String _formatDate(DateTime date) {
-    return DateFormat('d MMMM yyyy').format(date);
+    try {
+      final isHindi = isHindiNotifier.value;
+      if (isHindi) {
+        return DateFormat('d MMMM yyyy', 'hi').format(date);
+      }
+      return DateFormat('d MMMM yyyy').format(date);
+    } catch (e) {
+      return DateFormat('d MMMM yyyy').format(date);
+    }
   }
 
   String _formatShortDate(DateTime date) {
-    return DateFormat('d MMM yyyy').format(date);
+    try {
+      final isHindi = isHindiNotifier.value;
+      if (isHindi) {
+        return DateFormat('d MMM yyyy', 'hi').format(date);
+      }
+      return DateFormat('d MMM yyyy').format(date);
+    } catch (e) {
+      return DateFormat('d MMM yyyy').format(date);
+    }
   }
 
   String _getStatusLabel(String status) {
-    switch (status) {
-      case 'current':
-        return 'Active';
-      case 'future':
-        return 'Upcoming';
-      case 'past':
-        return 'Completed';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return 'Completed';
-    }
+    final map = {
+      'current': _t('Active', 'सक्रिय'),
+      'future': _t('Upcoming', 'आगामी'),
+      'past': _t('Completed', 'पूर्ण'),
+      'cancelled': _t('Cancelled', 'रद्द'),
+    };
+    return map[status] ?? status;
   }
 
   Color _getStatusColor(String status) {
@@ -342,10 +415,27 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
 
   void _showCreateLeaveDialog() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
+
     DateTime? fromDate;
     DateTime? toDate;
     String? reason;
     final TextEditingController reasonController = TextEditingController();
+
+    final List<Map<String, String>> reasonSuggestions = [
+      {'en': 'Personal leave', 'hi': 'व्यक्तिगत छुट्टी'},
+      {'en': 'Family function', 'hi': 'पारिवारिक समारोह'},
+      {'en': 'Medical emergency', 'hi': 'चिकित्सा आपातकाल'},
+      {'en': 'Vacation', 'hi': 'छुट्टी'},
+      {'en': 'Personal work', 'hi': 'निजी काम'},
+      {'en': 'Religious event', 'hi': 'धार्मिक कार्यक्रम'},
+    ];
+
+    String defaultReason = _t('Personal leave', 'व्यक्तिगत छुट्टी');
+    reasonController.text = defaultReason;
+    reason = defaultReason;
 
     showDialog(
       context: context,
@@ -357,10 +447,11 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(28),
                 ),
-                backgroundColor: isDark ? Colors.grey[850] : Colors.white,
+                backgroundColor:
+                    isDark ? const Color(0xFF1A1A2E) : Colors.white,
                 elevation: 24,
                 child: Container(
-                  padding: const EdgeInsets.all(28),
+                  padding: const EdgeInsets.all(24),
                   constraints: BoxConstraints(
                     maxWidth: 420,
                     maxHeight: MediaQuery.of(context).size.height * 0.9,
@@ -378,17 +469,17 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
                                   colors: [
-                                    Colors.green.shade400,
-                                    Colors.green.shade700,
+                                    primaryColor,
+                                    primaryColor.withOpacity(0.7),
                                   ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 ),
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.beach_access,
-                                color: Colors.white,
+                                color: colorScheme.onPrimary,
                                 size: 24,
                               ),
                             ),
@@ -398,7 +489,10 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Request Leave',
+                                    _t(
+                                      'Request Leave',
+                                      'छुट्टी का अनुरोध करें',
+                                    ),
                                     style: TextStyle(
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,
@@ -409,7 +503,10 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                                     ),
                                   ),
                                   Text(
-                                    'Plan your time off',
+                                    _t(
+                                      'Plan your time off',
+                                      'अपनी छुट्टी की योजना बनाएं',
+                                    ),
                                     style: TextStyle(
                                       fontSize: 13,
                                       color:
@@ -432,34 +529,27 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                             ),
                           ],
                         ),
-
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
 
                         // From Date
-                        _buildDatePickerField(
-                          label: 'Start Date',
+                        _buildModernDatePickerField(
+                          label: _t('Start Date', 'प्रारंभ तिथि'),
                           value: fromDate,
                           icon: Icons.calendar_today,
                           onTap: () async {
-                            final picked = await showDatePicker(
+                            final picked = await _showCustomCalendarDialog(
                               context: context,
+                              title: _t(
+                                'Select Start Date',
+                                'प्रारंभ तिथि चुनें',
+                              ),
                               initialDate: fromDate ?? DateTime.now(),
                               firstDate: DateTime.now(),
                               lastDate: DateTime.now().add(
                                 const Duration(days: 365),
                               ),
-                              builder: (context, child) {
-                                return Theme(
-                                  data: Theme.of(context).copyWith(
-                                    colorScheme: ColorScheme.light(
-                                      primary: Colors.green.shade600,
-                                      onPrimary: Colors.white,
-                                      onSurface: Colors.black87,
-                                    ),
-                                  ),
-                                  child: child!,
-                                );
-                              },
+                              isDark: isDark,
+                              primaryColor: primaryColor,
                             );
                             if (picked != null) {
                               setStateDialog(() {
@@ -472,35 +562,29 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                             }
                           },
                           isDark: isDark,
+                          primaryColor: primaryColor,
                         ),
-
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
 
                         // To Date
-                        _buildDatePickerField(
-                          label: 'End Date',
+                        _buildModernDatePickerField(
+                          label: _t('End Date', 'समाप्ति तिथि'),
                           value: toDate,
                           icon: Icons.calendar_today,
                           onTap: () async {
-                            final picked = await showDatePicker(
+                            final picked = await _showCustomCalendarDialog(
                               context: context,
+                              title: _t(
+                                'Select End Date',
+                                'समाप्ति तिथि चुनें',
+                              ),
                               initialDate: toDate ?? fromDate ?? DateTime.now(),
                               firstDate: fromDate ?? DateTime.now(),
                               lastDate: DateTime.now().add(
                                 const Duration(days: 365),
                               ),
-                              builder: (context, child) {
-                                return Theme(
-                                  data: Theme.of(context).copyWith(
-                                    colorScheme: ColorScheme.light(
-                                      primary: Colors.green.shade600,
-                                      onPrimary: Colors.white,
-                                      onSurface: Colors.black87,
-                                    ),
-                                  ),
-                                  child: child!,
-                                );
-                              },
+                              isDark: isDark,
+                              primaryColor: primaryColor,
                             );
                             if (picked != null) {
                               setStateDialog(() {
@@ -509,13 +593,13 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                             }
                           },
                           isDark: isDark,
+                          primaryColor: primaryColor,
                         ),
+                        const SizedBox(height: 14),
 
-                        const SizedBox(height: 16),
-
-                        // Reason
+                        // Reason with Suggestions
                         Text(
-                          'Reason (Optional)',
+                          _t('Reason', 'कारण'),
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -525,19 +609,25 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                         const SizedBox(height: 8),
                         Container(
                           decoration: BoxDecoration(
-                            color: isDark ? Colors.grey[800] : Colors.grey[50],
+                            color:
+                                isDark
+                                    ? const Color(0xFF252540)
+                                    : Colors.grey[50],
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color:
                                   isDark
-                                      ? Colors.grey[700]!
-                                      : Colors.grey[200]!,
+                                      ? Colors.white.withOpacity(0.06)
+                                      : const Color(0xFFE8ECF3),
                             ),
                           ),
                           child: TextField(
                             controller: reasonController,
                             decoration: InputDecoration(
-                              hintText: 'Brief reason for leave...',
+                              hintText: _t(
+                                'Brief reason for leave...',
+                                'छुट्टी का संक्षिप्त कारण...',
+                              ),
                               hintStyle: TextStyle(
                                 color:
                                     isDark
@@ -562,8 +652,128 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                             },
                           ),
                         ),
-
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children:
+                              reasonSuggestions.map((suggestion) {
+                                final label =
+                                    isHindiNotifier.value
+                                        ? suggestion['hi']!
+                                        : suggestion['en']!;
+                                final isSelected =
+                                    reasonController.text == label;
+                                return GestureDetector(
+                                  onTap: () {
+                                    setStateDialog(() {
+                                      reasonController.text = label;
+                                      reason = label;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      gradient:
+                                          isSelected
+                                              ? LinearGradient(
+                                                colors: [
+                                                  primaryColor,
+                                                  primaryColor.withOpacity(0.7),
+                                                ],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              )
+                                              : null,
+                                      color:
+                                          isSelected
+                                              ? null
+                                              : (isDark
+                                                  ? const Color(0xFF252540)
+                                                  : Colors.grey[100]),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color:
+                                            isSelected
+                                                ? primaryColor
+                                                : (isDark
+                                                    ? Colors.grey[700]!
+                                                    : Colors.grey[300]!),
+                                        width: isSelected ? 2 : 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (isSelected)
+                                          Icon(
+                                            Icons.check_circle,
+                                            size: 14,
+                                            color: Colors.white,
+                                          ),
+                                        if (isSelected)
+                                          const SizedBox(width: 6),
+                                        Text(
+                                          label,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight:
+                                                isSelected
+                                                    ? FontWeight.w700
+                                                    : FontWeight.w500,
+                                            color:
+                                                isSelected
+                                                    ? Colors.white
+                                                    : (isDark
+                                                        ? Colors.white70
+                                                        : Colors.grey[700]),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                size: 14,
+                                color:
+                                    isDark
+                                        ? Colors.grey[500]
+                                        : Colors.grey[400],
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  _t(
+                                    'Tap on any suggestion above to quickly fill the reason',
+                                    'ऊपर दिए गए किसी भी सुझाव पर टैप करें कारण को जल्दी भरने के लिए',
+                                  ),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color:
+                                        isDark
+                                            ? Colors.grey[500]
+                                            : Colors.grey[400],
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
 
                         // Actions
                         Row(
@@ -587,7 +797,7 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                                   ),
                                 ),
                                 child: Text(
-                                  'Cancel',
+                                  _t('Cancel', 'रद्द करें'),
                                   style: TextStyle(
                                     color:
                                         isDark
@@ -605,39 +815,63 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                                 onPressed: () {
                                   if (fromDate == null) {
                                     _showMessage(
-                                      'Please select a start date',
+                                      _t(
+                                        'Please select a start date',
+                                        'कृपया प्रारंभ तिथि चुनें',
+                                      ),
                                       Colors.orange,
                                     );
                                     return;
                                   }
                                   if (toDate == null) {
                                     _showMessage(
-                                      'Please select an end date',
+                                      _t(
+                                        'Please select an end date',
+                                        'कृपया समाप्ति तिथि चुनें',
+                                      ),
                                       Colors.orange,
                                     );
                                     return;
                                   }
                                   if (toDate!.isBefore(fromDate!)) {
                                     _showMessage(
-                                      'End date must be after start date',
+                                      _t(
+                                        'End date must be after start date',
+                                        'समाप्ति तिथि प्रारंभ तिथि के बाद होनी चाहिए',
+                                      ),
+                                      Colors.orange,
+                                    );
+                                    return;
+                                  }
+                                  if (reasonController.text.trim().isEmpty) {
+                                    _showMessage(
+                                      _t(
+                                        'Please enter a reason',
+                                        'कृपया एक कारण दर्ज करें',
+                                      ),
                                       Colors.orange,
                                     );
                                     return;
                                   }
 
                                   Navigator.pop(context);
-                                  _createLeave(fromDate!, toDate!, reason);
+                                  _createLeave(
+                                    fromDate!,
+                                    toDate!,
+                                    reason,
+                                    primaryColor,
+                                  );
                                 },
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green.shade600,
-                                  foregroundColor: Colors.white,
+                                  backgroundColor: primaryColor,
+                                  foregroundColor: colorScheme.onPrimary,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 16,
                                   ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(16),
                                   ),
-                                  elevation: 2,
+                                  elevation: 0,
                                 ),
                                 child:
                                     _isSubmitting
@@ -649,14 +883,17 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                                             color: Colors.white,
                                           ),
                                         )
-                                        : const Row(
+                                        : Row(
                                           mainAxisAlignment:
                                               MainAxisAlignment.center,
                                           children: [
                                             Icon(Icons.check, size: 20),
-                                            SizedBox(width: 8),
+                                            const SizedBox(width: 8),
                                             Text(
-                                              'Confirm Leave',
+                                              _t(
+                                                'Confirm Leave',
+                                                'छुट्टी की पुष्टि करें',
+                                              ),
                                               style: TextStyle(
                                                 fontSize: 15,
                                                 fontWeight: FontWeight.w600,
@@ -678,80 +915,673 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
     );
   }
 
-  Widget _buildDatePickerField({
+  // Custom Calendar Dialog with Hindi Support
+  Future<DateTime?> _showCustomCalendarDialog({
+    required BuildContext context,
+    required String title,
+    required DateTime initialDate,
+    required DateTime firstDate,
+    required DateTime lastDate,
+    required bool isDark,
+    required Color primaryColor,
+  }) async {
+    DateTime? tempDate = initialDate;
+    DateTime currentMonth = DateTime(initialDate.year, initialDate.month, 1);
+
+    // Hindi month names
+    const List<String> hindiMonths = [
+      'जनवरी',
+      'फरवरी',
+      'मार्च',
+      'अप्रैल',
+      'मई',
+      'जून',
+      'जुलाई',
+      'अगस्त',
+      'सितम्बर',
+      'अक्टूबर',
+      'नवम्बर',
+      'दिसम्बर',
+    ];
+
+    // Hindi weekday names (short)
+    const List<String> hindiWeekdays = [
+      'सोम',
+      'मंगल',
+      'बुध',
+      'गुरु',
+      'शुक्र',
+      'शनि',
+      'रवि',
+    ];
+
+    const List<String> englishWeekdays = [
+      'Mon',
+      'Tue',
+      'Wed',
+      'Thu',
+      'Fri',
+      'Sat',
+      'Sun',
+    ];
+
+    return await showDialog<DateTime>(
+      context: context,
+      barrierDismissible: true,
+      builder:
+          (context) => StatefulBuilder(
+            builder: (context, setStateDialog) {
+              final isHindi = isHindiNotifier.value;
+              final daysInMonth =
+                  DateTime(currentMonth.year, currentMonth.month + 1, 0).day;
+              final firstDayOfMonth = DateTime(
+                currentMonth.year,
+                currentMonth.month,
+                1,
+              );
+              final startWeekday = firstDayOfMonth.weekday;
+              final startOffset = startWeekday - 1;
+
+              return Dialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28),
+                ),
+                backgroundColor:
+                    isDark ? const Color(0xFF1A1A2E) : Colors.white,
+                elevation: 24,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  constraints: BoxConstraints(
+                    maxWidth: 400,
+                    maxHeight: MediaQuery.of(context).size.height * 0.8,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  primaryColor,
+                                  primaryColor.withOpacity(0.7),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(
+                              Icons.calendar_month_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color:
+                                        isDark ? Colors.white : Colors.black87,
+                                  ),
+                                ),
+                                Text(
+                                  _t('Pick a date', 'तिथि चुनें'),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color:
+                                        isDark
+                                            ? Colors.grey[400]
+                                            : Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.close,
+                              color: isDark ? Colors.white70 : Colors.grey[400],
+                              size: 24,
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Month Navigation
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.chevron_left_rounded, size: 28),
+                            color: isDark ? Colors.white : Colors.black87,
+                            onPressed: () {
+                              setStateDialog(() {
+                                currentMonth = DateTime(
+                                  currentMonth.year,
+                                  currentMonth.month - 1,
+                                  1,
+                                );
+                              });
+                            },
+                          ),
+                          Text(
+                            isHindi
+                                ? '${hindiMonths[currentMonth.month - 1]} ${currentMonth.year}'
+                                : '${_getEnglishMonth(currentMonth.month)} ${currentMonth.year}',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.chevron_right_rounded, size: 28),
+                            color: isDark ? Colors.white : Colors.black87,
+                            onPressed: () {
+                              setStateDialog(() {
+                                currentMonth = DateTime(
+                                  currentMonth.year,
+                                  currentMonth.month + 1,
+                                  1,
+                                );
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Weekday Headers
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          children: List.generate(7, (index) {
+                            final weekdayName =
+                                isHindi
+                                    ? hindiWeekdays[index]
+                                    : englishWeekdays[index];
+                            return Expanded(
+                              child: Center(
+                                child: Text(
+                                  weekdayName,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color:
+                                        isDark
+                                            ? Colors.grey[400]
+                                            : Colors.grey[600],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Calendar Grid
+                      Expanded(
+                        child: GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 7,
+                                childAspectRatio: 1.0,
+                                mainAxisSpacing: 4,
+                                crossAxisSpacing: 4,
+                              ),
+                          itemCount: 42,
+                          itemBuilder: (context, index) {
+                            final day = index - startOffset + 1;
+                            final date = DateTime(
+                              currentMonth.year,
+                              currentMonth.month,
+                              day,
+                            );
+
+                            if (day < 1 || day > daysInMonth) {
+                              return const SizedBox.shrink();
+                            }
+
+                            final isSelected =
+                                tempDate != null &&
+                                tempDate!.year == date.year &&
+                                tempDate!.month == date.month &&
+                                tempDate!.day == date.day;
+
+                            final isToday =
+                                DateTime.now().year == date.year &&
+                                DateTime.now().month == date.month &&
+                                DateTime.now().day == date.day;
+
+                            final isDisabled =
+                                date.isBefore(firstDate) ||
+                                date.isAfter(lastDate);
+
+                            return GestureDetector(
+                              onTap:
+                                  isDisabled
+                                      ? null
+                                      : () {
+                                        setStateDialog(() {
+                                          tempDate = date;
+                                        });
+                                      },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                decoration: BoxDecoration(
+                                  color:
+                                      isSelected
+                                          ? primaryColor
+                                          : isToday
+                                          ? primaryColor.withOpacity(0.12)
+                                          : null,
+                                  shape: BoxShape.circle,
+                                  border:
+                                      isToday && !isSelected
+                                          ? Border.all(
+                                            color: primaryColor,
+                                            width: 1.5,
+                                          )
+                                          : null,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '$day',
+                                    style: TextStyle(
+                                      color:
+                                          isDisabled
+                                              ? (isDark
+                                                  ? Colors.grey[700]
+                                                  : Colors.grey[400])
+                                              : isSelected
+                                              ? Colors.white
+                                              : isToday
+                                              ? primaryColor
+                                              : (isDark
+                                                  ? Colors.white
+                                                  : Colors.black87),
+                                      fontWeight:
+                                          isSelected || isToday
+                                              ? FontWeight.bold
+                                              : FontWeight.w500,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Selected date preview
+                      if (tempDate != null)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                primaryColor.withOpacity(0.08),
+                                primaryColor.withOpacity(0.03),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: primaryColor.withOpacity(0.2),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                size: 18,
+                                color: primaryColor,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                isHindi
+                                    ? '${tempDate!.day} ${hindiMonths[tempDate!.month - 1]} ${tempDate!.year}'
+                                    : _formatDate(tempDate!),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: primaryColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      const SizedBox(height: 12),
+
+                      // Actions
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: BorderSide(
+                                    color:
+                                        isDark
+                                            ? Colors.grey[600]!
+                                            : Colors.grey[300]!,
+                                    width: 1.5,
+                                  ),
+                                ),
+                              ),
+                              child: Text(
+                                _t('Cancel', 'रद्द करें'),
+                                style: TextStyle(
+                                  color:
+                                      isDark
+                                          ? Colors.grey[400]
+                                          : Colors.grey[600],
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                if (tempDate != null) {
+                                  Navigator.pop(context, tempDate);
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    tempDate != null
+                                        ? primaryColor
+                                        : Colors.grey[400],
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: Text(
+                                _t('Confirm', 'पुष्टि करें'),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+    );
+  }
+
+  String _getEnglishMonth(int month) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return months[month - 1];
+  }
+
+  Widget _buildModernDatePickerField({
     required String label,
     required DateTime? value,
     required IconData icon,
     required VoidCallback onTap,
     required bool isDark,
+    required Color primaryColor,
   }) {
+    final isSelected = value != null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: isDark ? Colors.white70 : Colors.grey[700],
-          ),
-        ),
-        const SizedBox(height: 8),
-        InkWell(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: isDark ? Colors.grey[800] : Colors.grey[50],
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color:
-                    value != null
-                        ? Colors.green.shade300
-                        : (isDark ? Colors.grey[700]! : Colors.grey[200]!),
-                width: value != null ? 2 : 1,
+        Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white70 : Colors.grey[700],
               ),
             ),
+            if (isSelected) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: primaryColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '✓',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: primaryColor,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 6),
+        Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(16),
+            splashColor: primaryColor.withOpacity(0.08),
+            highlightColor: primaryColor.withOpacity(0.04),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                gradient:
+                    isSelected
+                        ? LinearGradient(
+                          colors: [
+                            isDark
+                                ? const Color(0xFF1A1A2E).withOpacity(0.9)
+                                : Colors.white,
+                            isDark
+                                ? const Color(0xFF252540).withOpacity(0.9)
+                                : const Color(0xFFF8FAFD),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                        : null,
+                color:
+                    isSelected
+                        ? null
+                        : (isDark
+                            ? const Color(0xFF252540)
+                            : const Color(0xFFF8FAFD)),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color:
+                      isSelected
+                          ? primaryColor
+                          : (isDark
+                              ? Colors.white.withOpacity(0.06)
+                              : const Color(0xFFE8ECF3)),
+                  width: isSelected ? 2 : 1,
+                ),
+                boxShadow:
+                    isSelected
+                        ? [
+                          BoxShadow(
+                            color: primaryColor.withOpacity(0.15),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                            spreadRadius: -2,
+                          ),
+                        ]
+                        : null,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      gradient:
+                          isSelected
+                              ? LinearGradient(
+                                colors: [
+                                  primaryColor,
+                                  primaryColor.withOpacity(0.7),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              )
+                              : null,
+                      color:
+                          isSelected
+                              ? null
+                              : (isDark
+                                  ? const Color(0xFF1A1A2E)
+                                  : const Color(0xFFF0F2F8)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      icon,
+                      size: 18,
+                      color:
+                          isSelected
+                              ? Colors.white
+                              : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      isSelected
+                          ? _formatDate(value!)
+                          : _t('Select $label', '$label चुनें'),
+                      style: TextStyle(
+                        color:
+                            isSelected
+                                ? (isDark ? Colors.white : Colors.black87)
+                                : (isDark
+                                    ? Colors.grey[500]
+                                    : Colors.grey[400]),
+                        fontWeight:
+                            isSelected ? FontWeight.w600 : FontWeight.w400,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                  if (isSelected)
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.check_circle_rounded,
+                        size: 18,
+                        color: primaryColor,
+                      ),
+                    )
+                  else
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 20,
+                      color: isDark ? Colors.grey[500] : Colors.grey[400],
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (isSelected)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 4),
             child: Row(
               children: [
                 Icon(
-                  icon,
-                  size: 20,
-                  color:
-                      value != null
-                          ? Colors.green.shade600
-                          : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                  Icons.info_outline,
+                  size: 12,
+                  color: isDark ? Colors.grey[500] : Colors.grey[400],
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    value != null ? _formatDate(value) : 'Select $label',
-                    style: TextStyle(
-                      color:
-                          value != null
-                              ? (isDark ? Colors.white : Colors.black87)
-                              : (isDark ? Colors.grey[500] : Colors.grey[400]),
-                      fontWeight:
-                          value != null ? FontWeight.w500 : FontWeight.normal,
+                    _t(
+                      'Selected: ${_formatDate(value!)}',
+                      'चयनित: ${_formatDate(value!)}',
                     ),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: primaryColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (value != null)
-                  Icon(
-                    Icons.check_circle,
-                    size: 18,
-                    color: Colors.green.shade600,
-                  ),
               ],
             ),
           ),
-        ),
       ],
     );
   }
 
   void _showCancelConfirmation(Leave leave) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
 
     showDialog(
       context: context,
@@ -761,10 +1591,10 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(28),
             ),
-            backgroundColor: isDark ? Colors.grey[850] : Colors.white,
+            backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
             elevation: 24,
             child: Container(
-              padding: const EdgeInsets.all(28),
+              padding: const EdgeInsets.all(24),
               constraints: BoxConstraints(maxWidth: 400),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -786,9 +1616,9 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                       color: Colors.white,
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   Text(
-                    'Cancel Leave',
+                    _t('Cancel Leave', 'छुट्टी रद्द करें'),
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -797,29 +1627,38 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Are you sure you want to cancel this leave request?',
+                    _t(
+                      'Are you sure you want to cancel this leave request?',
+                      'क्या आप वाकई इस छुट्टी के अनुरोध को रद्द करना चाहते हैं?',
+                    ),
                     style: TextStyle(
                       fontSize: 14,
                       color: isDark ? Colors.grey[400] : Colors.grey[600],
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      vertical: 16,
-                      horizontal: 20,
+                      vertical: 14,
+                      horizontal: 16,
                     ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors:
                             isDark
-                                ? [Colors.grey[800]!, Colors.grey[700]!]
+                                ? [
+                                  const Color(0xFF252540),
+                                  const Color(0xFF1A1A2E),
+                                ]
                                 : [Colors.grey[50]!, Colors.grey[100]!],
                       ),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+                        color:
+                            isDark
+                                ? Colors.white.withOpacity(0.06)
+                                : const Color(0xFFE8ECF3),
                       ),
                     ),
                     child: Row(
@@ -866,7 +1705,8 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: isDark ? Colors.grey[800] : Colors.grey[50],
+                        color:
+                            isDark ? const Color(0xFF252540) : Colors.grey[50],
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -898,7 +1738,10 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'This action cannot be undone',
+                          _t(
+                            'This action cannot be undone',
+                            'यह कार्रवाई वापस नहीं ली जा सकती',
+                          ),
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.red.shade700,
@@ -908,7 +1751,7 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
                   Row(
                     children: [
                       Expanded(
@@ -928,7 +1771,7 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                             ),
                           ),
                           child: Text(
-                            'Keep It',
+                            _t('Keep It', 'रखें'),
                             style: TextStyle(
                               color:
                                   isDark ? Colors.grey[400] : Colors.grey[600],
@@ -952,7 +1795,7 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            elevation: 2,
+                            elevation: 0,
                           ),
                           child:
                               _isSubmitting
@@ -964,13 +1807,13 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                                       color: Colors.white,
                                     ),
                                   )
-                                  : const Row(
+                                  : Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Icon(Icons.delete_outline, size: 20),
-                                      SizedBox(width: 8),
+                                      const SizedBox(width: 8),
                                       Text(
-                                        'Yes, Cancel',
+                                        _t('Yes, Cancel', 'हाँ, रद्द करें'),
                                         style: TextStyle(
                                           fontSize: 15,
                                           fontWeight: FontWeight.w600,
@@ -996,6 +1839,9 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
     final statusLabel = _getStatusLabel(status);
     final statusIcon = _getStatusIcon(status);
     final isDark = Theme.of(context).brightness != Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -1003,7 +1849,7 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
         gradient: LinearGradient(
           colors:
               isDark
-                  ? [const Color(0xFF1E1E1E), const Color(0xFF2A2A2A)]
+                  ? [const Color(0xFF1A1A2E), const Color(0xFF252540)]
                   : [Colors.white, const Color(0xFFFAFAFA)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -1094,7 +1940,7 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                               decoration: BoxDecoration(
                                 color:
                                     isDark
-                                        ? Colors.grey[800]
+                                        ? const Color(0xFF252540)
                                         : Colors.grey[100],
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -1103,9 +1949,9 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                                 children: [
                                   Flexible(
                                     child: Text(
-                                      _formatDate(leave.from),
+                                      _formatShortDate(leave.from),
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 11,
                                         fontWeight: FontWeight.w700,
                                         color:
                                             isDark
@@ -1113,16 +1959,17 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                                                 : Colors.black87,
                                       ),
                                       overflow: TextOverflow.ellipsis,
-                                      softWrap: true,
+                                      softWrap: false,
+                                      maxLines: 1,
                                     ),
                                   ),
                                   Padding(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
+                                      horizontal: 4,
                                     ),
                                     child: Icon(
                                       Icons.arrow_forward_ios,
-                                      size: 10,
+                                      size: 8,
                                       color:
                                           isDark
                                               ? Colors.grey[500]
@@ -1131,9 +1978,9 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                                   ),
                                   Flexible(
                                     child: Text(
-                                      _formatDate(leave.to),
+                                      _formatShortDate(leave.to),
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 11,
                                         fontWeight: FontWeight.w700,
                                         color:
                                             isDark
@@ -1141,7 +1988,8 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                                                 : Colors.black87,
                                       ),
                                       overflow: TextOverflow.ellipsis,
-                                      softWrap: true,
+                                      softWrap: false,
+                                      maxLines: 1,
                                     ),
                                   ),
                                 ],
@@ -1157,14 +2005,14 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                                 decoration: BoxDecoration(
                                   color:
                                       isDark
-                                          ? Colors.grey[800]
+                                          ? const Color(0xFF252540)
                                           : Colors.grey[50],
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
                                     color:
                                         isDark
-                                            ? Colors.grey[700]!
-                                            : Colors.grey[200]!,
+                                            ? Colors.white.withOpacity(0.06)
+                                            : const Color(0xFFE8ECF3),
                                     width: 0.5,
                                   ),
                                 ),
@@ -1250,7 +2098,10 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                       if (status == 'future' || status == 'current') ...[
                         Container(
                           decoration: BoxDecoration(
-                            color: isDark ? Colors.grey[800] : Colors.grey[50],
+                            color:
+                                isDark
+                                    ? const Color(0xFF252540)
+                                    : Colors.grey[50],
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: IconButton(
@@ -1268,7 +2119,7 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                               minWidth: 32,
                               minHeight: 32,
                             ),
-                            tooltip: 'Cancel Leave',
+                            tooltip: _t('Cancel Leave', 'छुट्टी रद्द करें'),
                           ),
                         ),
                       ],
@@ -1285,7 +2136,10 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: isDark ? Colors.grey[800] : Colors.grey[100],
+                          color:
+                              isDark
+                                  ? const Color(0xFF252540)
+                                  : Colors.grey[100],
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Row(
@@ -1298,7 +2152,7 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              'Created: ${DateFormat('dd MMM, yyyy').format(leave.createdAt)}',
+                              '${_t('Created', 'बनाया गया')}: ${_formatShortDate(leave.createdAt)}',
                               style: TextStyle(
                                 fontSize: 9,
                                 color:
@@ -1335,7 +2189,7 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: isDark ? Colors.grey[800] : Colors.grey[200],
+                  color: isDark ? const Color(0xFF252540) : Colors.grey[200],
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -1387,14 +2241,17 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
               gradient: LinearGradient(
                 colors:
                     isDark
-                        ? [Colors.grey[850]!, Colors.grey[800]!]
+                        ? [const Color(0xFF1A1A2E), const Color(0xFF252540)]
                         : [Colors.grey[50]!, Colors.white],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+                color:
+                    isDark
+                        ? Colors.white.withOpacity(0.06)
+                        : const Color(0xFFE8ECF3),
               ),
             ),
             child: Center(
@@ -1407,7 +2264,7 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'No $title leaves',
+                    _t('No $title leaves', '$title छुट्टियाँ नहीं'),
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -1429,10 +2286,16 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
 
   @override
   Widget build(BuildContext context) {
-    final isDark1 = Theme.of(context).brightness == Brightness.dark;
-    final isDark = !isDark1;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
+    final surface = colorScheme.surface;
+    final onSurface = colorScheme.onSurface;
+
     return Scaffold(
-      backgroundColor: isDark ? Colors.grey[900] : Colors.grey[50],
+      backgroundColor:
+          isDark ? const Color(0xFF0B1020) : const Color(0xFFF7F9FC),
       body: SafeArea(
         child: Column(
           children: [
@@ -1440,7 +2303,7 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: isDark ? Colors.grey[850] : Colors.white,
+                color: isDark ? const Color(0xFF1A1A2E) : surface,
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.04),
@@ -1455,15 +2318,15 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.green.shade400, Colors.green.shade700],
+                        colors: [primaryColor, primaryColor.withOpacity(0.7)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.beach_access,
-                      color: Colors.white,
+                      color: colorScheme.onPrimary,
                       size: 22,
                     ),
                   ),
@@ -1473,15 +2336,15 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Leave Management',
+                          _t('Leave Management', 'छुट्टी प्रबंधन'),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : Colors.black87,
+                            color: isDark ? Colors.white : onSurface,
                           ),
                         ),
                         Text(
-                          '${_leaves.length} total leaves',
+                          '${_leaves.length} ${_t('total leaves', 'कुल छुट्टियाँ')}',
                           style: TextStyle(
                             fontSize: 12,
                             color: isDark ? Colors.grey[400] : Colors.grey[600],
@@ -1492,7 +2355,8 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                   ),
                   Container(
                     decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[800] : Colors.grey[100],
+                      color:
+                          isDark ? const Color(0xFF252540) : Colors.grey[100],
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: IconButton(
@@ -1508,10 +2372,10 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                   ElevatedButton.icon(
                     onPressed: _isSubmitting ? null : _showCreateLeaveDialog,
                     icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Take Leave'),
+                    label: Text(_t('Take Leave', 'छुट्टी लें')),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green.shade600,
-                      foregroundColor: Colors.white,
+                      backgroundColor: primaryColor,
+                      foregroundColor: colorScheme.onPrimary,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 10,
@@ -1529,15 +2393,18 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
             Expanded(
               child:
                   _isLoading
-                      ? const Center(
+                      ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 16),
+                            CircularProgressIndicator(color: primaryColor),
+                            const SizedBox(height: 16),
                             Text(
-                              'Loading leaves...',
-                              style: TextStyle(color: Colors.grey),
+                              _t(
+                                'Loading leaves...',
+                                'छुट्टियाँ लोड हो रही हैं...',
+                              ),
+                              style: const TextStyle(color: Colors.grey),
                             ),
                           ],
                         ),
@@ -1547,26 +2414,26 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                         child: Column(
                           children: [
                             _buildSection(
-                              'Active',
+                              _t('Active', 'सक्रिय'),
                               _getLeavesByStatus('current'),
                               Icons.timelapse,
                             ),
                             const SizedBox(height: 16),
                             _buildSection(
-                              'Upcoming',
+                              _t('Upcoming', 'आगामी'),
                               _getLeavesByStatus('future'),
                               Icons.event_available,
                             ),
                             const SizedBox(height: 16),
                             _buildSection(
-                              'Completed',
+                              _t('Completed', 'पूर्ण'),
                               _getLeavesByStatus('past'),
                               Icons.check_circle,
                             ),
                             if (_getLeavesByStatus('cancelled').isNotEmpty) ...[
                               const SizedBox(height: 16),
                               _buildSection(
-                                'Cancelled',
+                                _t('Cancelled', 'रद्द'),
                                 _getLeavesByStatus('cancelled'),
                                 Icons.cancel,
                               ),

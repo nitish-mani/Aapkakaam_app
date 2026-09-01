@@ -1,10 +1,9 @@
-// this file is made responsive for all devices.
+// this file is made responsive for all devices with Hindi support.
 
 import 'dart:convert';
 import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:app_aapkakaam/models/data_model.dart';
-import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,16 +14,19 @@ class AvailableVendor extends StatefulWidget {
     super.key,
     required this.bookingDate,
     this.profession = "",
+    this.hindiName = "",
   });
 
   final DateTime bookingDate;
   final String profession;
+  final String hindiName;
 
   @override
   State<AvailableVendor> createState() => _AvailableVendorState();
 }
 
-class _AvailableVendorState extends State<AvailableVendor> {
+class _AvailableVendorState extends State<AvailableVendor>
+    with SingleTickerProviderStateMixin {
   Future<Map<String, dynamic>>? _futureVendors;
   VendorModel? _vendor;
   UserModel? _user;
@@ -43,13 +45,46 @@ class _AvailableVendorState extends State<AvailableVendor> {
   String? _selectedVendorId;
   String? _selectedVendorName;
 
+  AnimationController? _animationController;
+  Animation<double>? _fadeAnimation;
+
+  // Colors
+  static const Color _primaryBlue = Color(0xFF4F46E5);
+  static const Color _primaryPurple = Color(0xFF7C3AED);
+  static const Color _accentGreen = Color(0xFF22C55E);
+  static const Color _accentOrange = Color(0xFFF59E0B);
+  static const Color _accentRed = Color(0xFFEF4444);
+
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController!, curve: Curves.easeIn),
+    );
     _loadUserData();
   }
 
-  // ==================== HELPER METHODS ====================
+  @override
+  void dispose() {
+    _animationController?.dispose();
+    super.dispose();
+  }
+
+  // ============================================================
+  // HINDI TRANSLATION HELPER
+  // ============================================================
+
+  String _t(String en, String hi) {
+    return isHindiNotifier.value ? hi : en;
+  }
+
+  // ============================================================
+  // HELPER METHODS
+  // ============================================================
 
   double _getRatingAsDouble(dynamic rating) {
     if (rating == null) return 0.0;
@@ -71,7 +106,44 @@ class _AvailableVendorState extends State<AvailableVendor> {
     return 0;
   }
 
-  // ==================== END HELPER METHODS ====================
+  String _capitalizeWords(String input) {
+    if (input.isEmpty) return input;
+    return input
+        .split(' ')
+        .map(
+          (word) =>
+              word.isNotEmpty ? word[0].toUpperCase() + word.substring(1) : '',
+        )
+        .join(' ');
+  }
+
+  String _maskPhoneNumber(String phone) {
+    if (phone.length < 10) return phone;
+    final visiblePart = phone.substring(0, 2);
+    final maskedPart = '*' * (phone.length - 4);
+    final lastTwo = phone.substring(phone.length - 2);
+    return '$visiblePart$maskedPart$lastTwo';
+  }
+
+  Color _getColorFromString(String input) {
+    final colors = [
+      _primaryBlue,
+      _primaryPurple,
+      const Color(0xFFEC4899),
+      const Color(0xFFEF4444),
+      _accentOrange,
+      _accentGreen,
+      const Color(0xFF06B6D4),
+      const Color(0xFF3B82F6),
+    ];
+    if (input.isEmpty) return colors[0];
+    final index = input.hashCode.abs() % colors.length;
+    return colors[index];
+  }
+
+  // ============================================================
+  // LOAD USER DATA
+  // ============================================================
 
   Future<void> _loadUserData() async {
     setState(() => _isLoading = true);
@@ -104,10 +176,15 @@ class _AvailableVendorState extends State<AvailableVendor> {
         _futureVendors = _fetchVendors(token, bookingDate);
         _isLoading = false;
       });
+      _animationController?.forward();
     } catch (e) {
       setState(() => _isLoading = false);
     }
   }
+
+  // ============================================================
+  // FETCH VENDORS
+  // ============================================================
 
   Future<Map<String, dynamic>> _fetchVendors(
     String token,
@@ -119,7 +196,6 @@ class _AvailableVendorState extends State<AvailableVendor> {
     ).format(bookingDate);
     try {
       final endpoint = _isVendor ? 'getAllV' : 'getAll';
-
       final jobType = widget.profession.toLowerCase();
 
       final url =
@@ -139,19 +215,20 @@ class _AvailableVendorState extends State<AvailableVendor> {
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final errorData = jsonDecode(response.body);
-
         throw Exception(errorData['message'] ?? 'Failed to fetch vendors');
       }
 
       final decoded = jsonDecode(response.body);
-
       final vendors = decoded['vendors'] as List? ?? [];
-
       return {...decoded, 'vendors': vendors};
     } catch (e) {
       rethrow;
     }
   }
+
+  // ============================================================
+  // BOOKING
+  // ============================================================
 
   Future<void> _handleBookNow({
     required BuildContext context,
@@ -164,7 +241,6 @@ class _AvailableVendorState extends State<AvailableVendor> {
     setState(() => _isBooking = true);
 
     final normalizedJobType = jobType.trim().toLowerCase();
-
     final dateForVendorApi = DateFormat(
       'EEE MMM dd yyyy',
       'en_US',
@@ -172,7 +248,6 @@ class _AvailableVendorState extends State<AvailableVendor> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-
       final userData = prefs.getString('user');
       final vendorData = prefs.getString('vendor');
 
@@ -181,14 +256,11 @@ class _AvailableVendorState extends State<AvailableVendor> {
       }
 
       final decoded = jsonDecode(_isVendor ? vendorData! : userData!);
-
       final token = 'Bearer ${decoded['token']}';
-
       final userId = _isVendor ? decoded['vendorId'] : decoded['userId'];
 
       final bookingEndpoint =
-          "${KConstantURL.url}/bookings/postToBookings"
-          "${_isVendor ? 'V' : 'U'}";
+          "${KConstantURL.url}/bookings/postToBookings${_isVendor ? 'V' : 'U'}";
 
       final bookingResponse = await http
           .post(
@@ -212,13 +284,10 @@ class _AvailableVendorState extends State<AvailableVendor> {
       if (bookingResponse.statusCode < 200 ||
           bookingResponse.statusCode >= 300) {
         final errorData = jsonDecode(bookingResponse.body);
-
         throw Exception(errorData['message'] ?? 'Booking failed');
       }
 
       final responseData = jsonDecode(bookingResponse.body);
-
-      final updatedBalance = responseData['data']?['balance'];
 
       if (_isVendor && _vendor != null) {
         await _updateVendorBalance(responseData);
@@ -229,15 +298,15 @@ class _AvailableVendorState extends State<AvailableVendor> {
       if (mounted) {
         _showSuccessSnackbar(
           context,
-          responseData['message'] ?? 'Booking created successfully',
+          responseData['message'] ??
+              _t('Booking created successfully', 'बुकिंग सफलतापूर्वक बनाई गई'),
         );
       }
 
-      // Refresh using EXACT same date/type normalization
       if (mounted) {
         await _refreshVendorList();
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       if (mounted) {
         _showErrorSnackbar(context, e.toString());
       }
@@ -317,49 +386,25 @@ class _AvailableVendorState extends State<AvailableVendor> {
   }
 
   Future<void> _refreshVendorList() async {
-    debugPrint('🔄 Refreshing vendor list...');
-
     final bookingDate = widget.bookingDate;
-    // final dateForVendorApi = DateFormat(
-    //   'EEE MMM dd yyyy',
-    //   'en_US',
-    // ).format(widget.bookingDate);
-
     final token =
         _isVendor ? 'Bearer ${_vendor?.token}' : 'Bearer ${_user?.token}';
 
-    debugPrint('📅 Booking date: $bookingDate');
-    debugPrint('📍 Pincode: $_pincode');
-    debugPrint('📄 Page: $_pageNo');
-
     try {
       final newVendors = await _fetchVendors(token, bookingDate);
-
-      final vendors = newVendors['vendors'] as List? ?? [];
-
-      debugPrint(
-        '✅ Vendor refresh completed. '
-        'Count: ${vendors.length}',
-      );
-
-      for (final vendor in vendors) {
-        debugPrint(
-          '👤 Available vendor: '
-          '${vendor['_id']} - ${vendor['name']}',
-        );
-      }
-
       if (mounted) {
         setState(() {
           _futureVendors = Future.value(newVendors);
         });
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       debugPrint('❌ Vendor refresh failed: $e');
-
-      debugPrint('StackTrace: $stackTrace');
     }
   }
+
+  // ============================================================
+  // REVIEWS
+  // ============================================================
 
   Future<void> _fetchReviews(String vendorId, String vendorName) async {
     setState(() {
@@ -409,7 +454,6 @@ class _AvailableVendorState extends State<AvailableVendor> {
           _isReviewLoading = false;
         });
       }
-      debugPrint("Error fetching reviews: $e");
     }
   }
 
@@ -421,6 +465,10 @@ class _AvailableVendorState extends State<AvailableVendor> {
       _selectedVendorName = null;
     });
   }
+
+  // ============================================================
+  // DIALOGS & SNACKBARS
+  // ============================================================
 
   void _showBookingConfirmation(
     BuildContext context,
@@ -441,111 +489,158 @@ class _AvailableVendorState extends State<AvailableVendor> {
             )
             : "10.00";
 
-    // Get first letter of name safely
     final String vendorName = vendor['name'] ?? '';
     final String firstLetter =
         vendorName.isNotEmpty ? vendorName[0].toUpperCase() : 'V';
-
-    // Get rating safely
     final double ratingValue = _getRatingAsDouble(vendor['rating']);
     final int ratingCount = _getIntValue(vendor['ratingCount']);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showDialog(
       context: context,
       builder:
-          (dialogContext) => AlertDialog(
-            title: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.amber,
-                  radius: 20,
-                  child: Text(
-                    firstLetter,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          (dialogContext) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header
+                  Row(
                     children: [
-                      Text(
-                        vendorName.toUpperCase(),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [_primaryBlue, _primaryPurple],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
                         ),
-                      ),
-                      Row(
-                        children: [
-                          _buildStarRating(ratingValue),
-                          const SizedBox(width: 4),
-                          Text(
-                            ratingCount > 0
-                                ? '${ratingValue.toStringAsFixed(1)} ($ratingCount reviews)'
-                                : 'New Vendor',
+                        child: Center(
+                          child: Text(
+                            firstLetter,
                             style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20,
                             ),
                           ),
-                        ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              vendorName.toUpperCase(),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                            Row(
+                              children: [
+                                _buildStarRating(ratingValue, starSize: 14),
+                                const SizedBox(width: 4),
+                                Text(
+                                  ratingCount > 0
+                                      ? '${ratingValue.toStringAsFixed(1)} ($ratingCount ${_t('Reviews', 'समीक्षाएँ')})'
+                                      : _t('New Vendor', 'नया विक्रेता'),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color:
+                                        isDark
+                                            ? Colors.white60
+                                            : Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildDetailItem(
-                    '🔧',
-                    'Service',
-                    vendor['type']?.toUpperCase() ?? '',
-                  ),
-                  _buildDetailItem('📅', 'Date', formattedDate),
-                  _buildDetailItem(
-                    '📍',
-                    'Location',
-                    '${address?.vill ?? ''}, ${address?.post ?? ''}',
-                  ),
-                  _buildDetailItem(
-                    '💰',
-                    'Cost',
-                    '₹${vendor['wageRate']} / ${vendor['wageRateType'] ?? 'day'}',
-                  ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
+                  // Details
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
+                      color:
+                          isDark
+                              ? Colors.white.withOpacity(0.05)
+                              : Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildDetailItem(
+                          '🔧',
+                          _t('Service', 'सेवा'),
+                          vendor['type']?.toUpperCase() ?? '',
+                        ),
+                        _buildDivider(isDark),
+                        _buildDetailItem(
+                          '📅',
+                          _t('Date', 'तारीख'),
+                          formattedDate,
+                        ),
+                        _buildDivider(isDark),
+                        _buildDetailItem(
+                          '📍',
+                          _t('Location', 'स्थान'),
+                          '${address?.vill ?? ''}, ${address?.post ?? ''}',
+                        ),
+                        _buildDivider(isDark),
+                        _buildDetailItem(
+                          '💰',
+                          _t('Cost', 'लागत'),
+                          '₹${vendor['wageRate']} / ${vendor['wageRateType'] ?? 'day'}',
+                          isPrice: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Fee note
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _primaryBlue.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _primaryBlue.withOpacity(0.15)),
+                    ),
+                    child: Column(
                       children: [
                         Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.info_outline,
                               size: 16,
-                              color: Colors.blue,
+                              color: _primaryBlue,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Booking fee of ₹$discountedPrice will be deducted from your balance. This fee is non-refundable.',
+                                _t(
+                                  'Booking fee of ₹$discountedPrice will be deducted from your balance. This fee is non-refundable.',
+                                  '₹$discountedPrice की बुकिंग शुल्क आपके बैलेंस से काटा जाएगा। यह शुल्क वापस नहीं किया जाएगा।',
+                                ),
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: Colors.grey[700],
+                                  color:
+                                      isDark
+                                          ? Colors.white70
+                                          : Colors.grey[700],
                                 ),
                               ),
                             ),
@@ -556,18 +651,19 @@ class _AvailableVendorState extends State<AvailableVendor> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Available Balance:',
+                              _t('Available Balance', 'उपलब्ध बैलेंस'),
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.grey[700],
+                                color:
+                                    isDark ? Colors.white60 : Colors.grey[600],
                               ),
                             ),
                             Text(
                               '₹${balance.toStringAsFixed(2)}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
-                                color: Colors.green,
+                                color: _accentGreen,
                               ),
                             ),
                           ],
@@ -575,42 +671,76 @@ class _AvailableVendorState extends State<AvailableVendor> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            backgroundColor:
+                                isDark
+                                    ? Colors.white.withOpacity(0.05)
+                                    : Colors.grey[100],
+                          ),
+                          child: Text(
+                            _t('Cancel', 'रद्द करें'),
+                            style: TextStyle(
+                              color: _accentRed,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(dialogContext);
+                            _handleBookNow(
+                              context: context,
+                              vendorId: vendor['_id'],
+                              jobType: jobType,
+                              phoneNo: vendor['phoneNo'].toString(),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _primaryBlue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            _t('Confirm Booking', 'बुकिंग की पुष्टि करें'),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text(
-                  'Cancel',
-                  style: TextStyle(color: Colors.red),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                  _handleBookNow(
-                    context: context,
-                    vendorId: vendor['_id'],
-                    jobType: jobType,
-                    phoneNo: vendor['phoneNo'].toString(),
-                  );
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-                child: const Text(
-                  'Confirm Booking',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
           ),
     );
   }
 
-  Widget _buildDetailItem(String icon, String label, String value) {
+  Widget _buildDetailItem(
+    String icon,
+    String label,
+    String value, {
+    bool isPrice = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -627,9 +757,10 @@ class _AvailableVendorState extends State<AvailableVendor> {
                 ),
                 Text(
                   value,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
+                  style: TextStyle(
+                    fontWeight: isPrice ? FontWeight.bold : FontWeight.w500,
                     fontSize: 14,
+                    color: isPrice ? _primaryBlue : null,
                   ),
                 ),
               ],
@@ -640,10 +771,17 @@ class _AvailableVendorState extends State<AvailableVendor> {
     );
   }
 
+  Widget _buildDivider(bool isDark) {
+    return Divider(
+      height: 8,
+      color: isDark ? Colors.white.withOpacity(0.06) : Colors.grey[200],
+    );
+  }
+
   void _showSuccessSnackbar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: Colors.green,
+        backgroundColor: _accentGreen,
         content: Center(
           child: Text(
             message,
@@ -653,6 +791,9 @@ class _AvailableVendorState extends State<AvailableVendor> {
             ),
           ),
         ),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -660,7 +801,7 @@ class _AvailableVendorState extends State<AvailableVendor> {
   void _showErrorSnackbar(BuildContext context, String error) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: Colors.red,
+        backgroundColor: _accentRed,
         content: Center(
           child: Text(
             error,
@@ -670,90 +811,249 @@ class _AvailableVendorState extends State<AvailableVendor> {
             ),
           ),
         ),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
+  // ============================================================
+  // BUILD
+  // ============================================================
+
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-
     return ValueListenableBuilder<bool>(
-      valueListenable: isDarkThemeNotifier,
-      builder: (context, isDarkTheme, _) {
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(
-              'Available ${widget.profession}',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: mediaQuery.size.width * 0.05,
-              ),
-            ),
-            actions: [
-              Container(
-                margin: const EdgeInsets.only(right: 16),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: isDarkTheme ? Colors.black26 : Colors.white30,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '₹${balance.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: mediaQuery.size.width * 0.03, // Smaller font size
-                    fontWeight: FontWeight.w600,
-                    color: isDarkTheme ? Colors.white : Colors.black87,
-                  ),
-                ),
-              ),
-            ],
-            backgroundColor: isDarkTheme ? Colors.teal : Colors.amber,
-          ),
-          backgroundColor: isDarkTheme ? Colors.grey[100] : Colors.grey[900],
-          body: SizedBox(
-            height: mediaQuery.size.height * 0.85,
-            child: Column(
-              children: [
-                Expanded(
-                  child:
-                      _isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : _buildVendorList(isDarkTheme, mediaQuery),
-                ),
-                if (itemCount > 0)
-                  _buildPaginationControls(isDarkTheme, mediaQuery),
-              ],
-            ),
-          ),
+      valueListenable: isHindiNotifier,
+      builder: (context, isHindi, _) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: isDarkThemeNotifier,
+          builder: (context, isDarkTheme, _) {
+            return _buildPage(
+              context,
+              isDarkTheme: isDarkTheme,
+              isHindi: isHindi,
+            );
+          },
         );
       },
     );
   }
 
-  Widget _buildVendorList(bool isDarkTheme, MediaQueryData mediaQuery) {
+  Widget _buildPage(
+    BuildContext context, {
+    required bool isDarkTheme,
+    required bool isHindi,
+  }) {
+    final mediaQuery = MediaQuery.of(context);
+    final isSmallScreen = mediaQuery.size.width < 400;
+    final textColor = isDarkTheme ? Colors.white : Colors.black87;
+    final secondaryTextColor = isDarkTheme ? Colors.white60 : Colors.grey[600]!;
+    final backgroundColor =
+        isDarkTheme ? const Color(0xFF0B1020) : const Color(0xFFF0F2F8);
+
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        title: Text(
+          isHindi
+              ? 'उपलब्ध ${widget.hindiName}'
+              : 'Available ${widget.profession}',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: isSmallScreen ? 16 : 20,
+            color: textColor,
+          ),
+        ),
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).primaryColor,
+                  Theme.of(context).primaryColor.withOpacity(0.7),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Theme.of(context).primaryColor.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.wallet_rounded, color: Colors.white, size: 16),
+                const SizedBox(width: 4),
+                Text(
+                  '₹${balance.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: isSmallScreen ? 12 : 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: textColor,
+      ),
+      body:
+          _isLoading
+              ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [_primaryBlue, _primaryPurple],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _t(
+                        'Loading ${widget.profession}...',
+                        '${widget.hindiName} लोड हो रहे हैं...',
+                      ),
+                      style: TextStyle(color: secondaryTextColor, fontSize: 14),
+                    ),
+                  ],
+                ),
+              )
+              : (_fadeAnimation != null
+                  ? FadeTransition(
+                    opacity: _fadeAnimation!,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: _buildVendorList(
+                            isDarkTheme,
+                            mediaQuery,
+                            isSmallScreen,
+                            textColor,
+                            secondaryTextColor,
+                          ),
+                        ),
+                        if (itemCount > 0)
+                          SafeArea(
+                            top: false,
+                            minimum: const EdgeInsets.only(bottom: 8),
+                            child: _buildPaginationControls(
+                              isDarkTheme,
+                              mediaQuery,
+                              isSmallScreen,
+                              textColor,
+                              secondaryTextColor,
+                            ),
+                          ),
+                      ],
+                    ),
+                  )
+                  : Column(
+                    children: [
+                      Expanded(
+                        child: _buildVendorList(
+                          isDarkTheme,
+                          mediaQuery,
+                          isSmallScreen,
+                          textColor,
+                          secondaryTextColor,
+                        ),
+                      ),
+                      if (itemCount > 0)
+                        SafeArea(
+                          top: false,
+                          minimum: const EdgeInsets.only(bottom: 8),
+                          child: _buildPaginationControls(
+                            isDarkTheme,
+                            mediaQuery,
+                            isSmallScreen,
+                            textColor,
+                            secondaryTextColor,
+                          ),
+                        ),
+                    ],
+                  )),
+    );
+  }
+
+  // ============================================================
+  // VENDOR LIST
+  // ============================================================
+
+  Widget _buildVendorList(
+    bool isDarkTheme,
+    MediaQueryData mediaQuery,
+    bool isSmallScreen,
+    Color textColor,
+    Color secondaryTextColor,
+  ) {
     return FutureBuilder<Map<String, dynamic>>(
       future: _futureVendors,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(
             child: CircularProgressIndicator(
-              color: isDarkTheme ? Colors.teal : Colors.amber,
+              color: Theme.of(context).primaryColor,
             ),
           );
         }
 
         if (snapshot.hasError) {
           return Center(
-            child: Text(
-              "Error: ${snapshot.error}",
-              style: TextStyle(
-                color: isDarkTheme ? Colors.black : Colors.white,
-                fontSize: mediaQuery.size.width * 0.04,
-              ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline_rounded, size: 48, color: _accentRed),
+                const SizedBox(height: 12),
+                Text(
+                  _t(
+                    'Error loading ${widget.profession}',
+                    '${widget.hindiName} लोड करने में त्रुटि',
+                  ),
+                  style: TextStyle(
+                    fontSize: mediaQuery.size.width * 0.04,
+                    color: textColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  snapshot.error.toString(),
+                  style: TextStyle(
+                    fontSize: mediaQuery.size.width * 0.032,
+                    color: secondaryTextColor,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           );
         }
@@ -761,15 +1061,32 @@ class _AvailableVendorState extends State<AvailableVendor> {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return Center(
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SizedBox(height: 18),
-                const Center(child: BannerAdWidget()),
-                SizedBox(height: 18),
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: (isDarkTheme ? Colors.white : Colors.black)
+                        .withOpacity(0.05),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.search_off_rounded,
+                    size: 40,
+                    color: isDarkTheme ? Colors.white30 : Colors.grey[400],
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Text(
-                  "No ${widget.profession} available",
+                  _t(
+                    'No ${widget.profession} available',
+                    'कोई ${widget.hindiName} उपलब्ध नहीं',
+                  ),
                   style: TextStyle(
-                    color: isDarkTheme ? Colors.black : Colors.white,
+                    fontWeight: FontWeight.bold,
                     fontSize: mediaQuery.size.width * 0.045,
+                    color: textColor,
                   ),
                 ),
               ],
@@ -781,15 +1098,23 @@ class _AvailableVendorState extends State<AvailableVendor> {
         if (vendorList.isEmpty) {
           return Center(
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SizedBox(height: 18),
-                const Center(child: BannerAdWidget()),
-                SizedBox(height: 18),
+                Icon(
+                  Icons.search_off_rounded,
+                  size: 48,
+                  color: isDarkTheme ? Colors.white30 : Colors.grey[400],
+                ),
+                const SizedBox(height: 12),
                 Text(
-                  "No ${widget.profession} available",
+                  _t(
+                    'No ${widget.profession} available',
+                    'कोई ${widget.hindiName} उपलब्ध नहीं',
+                  ),
                   style: TextStyle(
-                    color: isDarkTheme ? Colors.black : Colors.white,
+                    fontWeight: FontWeight.bold,
                     fontSize: mediaQuery.size.width * 0.045,
+                    color: textColor,
                   ),
                 ),
               ],
@@ -800,202 +1125,307 @@ class _AvailableVendorState extends State<AvailableVendor> {
         return Stack(
           children: [
             ListView.builder(
-              padding: EdgeInsets.all(mediaQuery.size.width * 0.03),
+              padding: EdgeInsets.all(isSmallScreen ? 8 : 12),
               itemCount: vendorList.length,
               itemBuilder:
                   (context, index) => Column(
                     children: [
-                      if (index % 5 == 0) ...[
-                        const Center(child: BannerAdWidget()),
-                        SizedBox(height: 8),
-                      ],
                       _buildVendorCard(
                         vendorList[index],
                         isDarkTheme,
                         mediaQuery,
-                        widget.profession,
+                        isSmallScreen,
+                        textColor,
+                        secondaryTextColor,
                       ),
                     ],
                   ),
             ),
-            // Reviews Modal
+
             if (_isReviewsModalOpen)
-              _buildReviewsModal(isDarkTheme, mediaQuery),
+              _buildReviewsModal(
+                isDarkTheme,
+                mediaQuery,
+                isSmallScreen,
+                textColor,
+                secondaryTextColor,
+              ),
           ],
         );
       },
     );
   }
 
+  // ============================================================
+  // VENDOR CARD
+  // ============================================================
+
   Widget _buildVendorCard(
     dynamic vendor,
     bool isDarkTheme,
     MediaQueryData mediaQuery,
-    String jobType,
+    bool isSmallScreen,
+    Color textColor,
+    Color secondaryTextColor,
   ) {
     final balance = _user?.balance ?? _vendor?.balance ?? 0;
     final canBook = balance >= 10;
     final vendorName = vendor['name'] ?? '';
+    final firstLetter =
+        vendorName.isNotEmpty ? vendorName[0].toUpperCase() : 'V';
 
-    // Safely get values
     final double ratingValue = _getRatingAsDouble(vendor['rating']);
     final int ratingCount = _getIntValue(vendor['ratingCount']);
     final int completedVendor = _getIntValue(vendor['completedVendor']);
     final int experience = _getIntValue(vendor['experience']);
 
-    return Card(
+    final avatarColor = _getColorFromString(vendorName);
+
+    final cardColor = isDarkTheme ? const Color(0xFF1A1A2E) : Colors.white;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
       margin: EdgeInsets.only(bottom: mediaQuery.size.height * 0.015),
-      elevation: 2,
-      color: isDarkTheme ? Colors.white : Colors.grey[850],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color:
+              isDarkTheme ? Colors.white.withOpacity(0.06) : Colors.grey[200]!,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDarkTheme ? 0.15 : 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: EdgeInsets.all(mediaQuery.size.width * 0.04),
+        padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
         child: Row(
           children: [
-            // Profile Picture
-            _buildProfilePicture(vendor, isDarkTheme, mediaQuery),
-            SizedBox(width: mediaQuery.size.width * 0.04),
-            // Vendor Info
+            // Avatar
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [avatarColor, avatarColor.withOpacity(0.6)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: avatarColor.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  firstLetter,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(width: mediaQuery.size.width * 0.03),
+
+            // Content
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Name & Verified
                   Row(
                     children: [
-                      Text(
-                        _capitalizeWords(vendorName),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: mediaQuery.size.width * 0.045,
-                          color: isDarkTheme ? Colors.black : Colors.white,
+                      Flexible(
+                        child: Text(
+                          _capitalizeWords(vendorName),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: isSmallScreen ? 14 : 16,
+                            color: textColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       if (vendor['isVerified'] == true) ...[
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Icon(
-                          Icons.verified,
-                          color: Colors.blue,
-                          size: mediaQuery.size.width * 0.04,
+                          Icons.verified_rounded,
+                          color: _primaryBlue,
+                          size: isSmallScreen ? 14 : 16,
                         ),
                       ],
                     ],
                   ),
+
+                  // Type
                   Text(
-                    _capitalizeWords(vendor['type']),
+                    _capitalizeWords(vendor['type'] ?? ''),
                     style: TextStyle(
-                      fontSize: mediaQuery.size.width * 0.04,
-                      color: isDarkTheme ? Colors.black54 : Colors.white70,
+                      fontSize: isSmallScreen ? 12 : 13,
+                      color: secondaryTextColor,
                     ),
                   ),
+
+                  // Rating
                   Row(
                     children: [
                       _buildStarRating(
                         ratingValue,
-                        starSize: mediaQuery.size.width * 0.035,
+                        starSize: isSmallScreen ? 12 : 14,
                       ),
-                      SizedBox(width: 4),
+                      const SizedBox(width: 4),
                       GestureDetector(
                         onTap: () => _fetchReviews(vendor['_id'], vendorName),
                         child: Text(
                           ratingCount > 0
-                              ? '${ratingValue.toStringAsFixed(1)} ($ratingCount Reviews)'
-                              : 'New Vendor',
+                              ? '${ratingValue.toStringAsFixed(1)} ($ratingCount ${_t('Reviews', 'समीक्षाएँ')})'
+                              : _t('New Vendor', 'नया विक्रेता'),
                           style: TextStyle(
-                            fontSize: mediaQuery.size.width * 0.032,
-                            color: Colors.blue,
+                            fontSize: isSmallScreen ? 11 : 12,
+                            color: _primaryBlue,
                             decoration:
                                 ratingCount > 0
                                     ? TextDecoration.underline
                                     : null,
-                            fontWeight: FontWeight.bold,
-                            decorationColor: Colors.black,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
                     ],
                   ),
+
                   // Stats
-                  _buildVendorStats(
-                    vendor,
-                    isDarkTheme,
-                    mediaQuery,
-                    completedVendor,
-                    experience,
+                  Row(
+                    children: [
+                      if (completedVendor > 0) ...[
+                        Icon(
+                          Icons.check_circle_rounded,
+                          color: _accentGreen,
+                          size: isSmallScreen ? 14 : 16,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          '$completedVendor ${_t('Jobs Completed', 'कार्य पूर्ण')}',
+                          style: TextStyle(
+                            fontSize: isSmallScreen ? 10 : 11,
+                            color: secondaryTextColor,
+                          ),
+                        ),
+                      ],
+                      if (completedVendor > 0 && experience > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 1,
+                          height: 14,
+                          color: secondaryTextColor.withOpacity(0.3),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      if (experience > 0) ...[
+                        Icon(
+                          Icons.emoji_events_rounded,
+                          color: _accentOrange,
+                          size: isSmallScreen ? 14 : 16,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          '$experience ${_t('Years', 'साल')}',
+                          style: TextStyle(
+                            fontSize: isSmallScreen ? 10 : 11,
+                            color: secondaryTextColor,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
+
                   // Phone
                   Text(
                     '📱 ${_maskPhoneNumber(vendor['phoneNo'].toString())}',
                     style: TextStyle(
-                      fontSize: mediaQuery.size.width * 0.035,
-                      color: isDarkTheme ? Colors.black : Colors.white,
+                      fontSize: isSmallScreen ? 11 : 12,
+                      color: secondaryTextColor,
                     ),
                   ),
                 ],
               ),
             ),
-            // Book Now Button
+
+            // Price & Book Button
             Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  '₹${vendor['wageRate']}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: mediaQuery.size.width * 0.045,
-                    color: isDarkTheme ? Colors.teal : Colors.amber,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      '₹${vendor['wageRate']}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: isSmallScreen ? 16 : 18,
+                        color: _primaryBlue,
+                      ),
+                    ),
+                    Text(
+                      '/${vendor['wageRateType'] ?? 'day'}',
+                      style: TextStyle(
+                        fontSize: isSmallScreen ? 10 : 11,
+                        color: secondaryTextColor,
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  '/ ${vendor['wageRateType'] ?? 'day'}',
-                  style: TextStyle(
-                    fontSize: mediaQuery.size.width * 0.03,
-                    color: isDarkTheme ? Colors.black54 : Colors.white54,
-                  ),
-                ),
-                SizedBox(height: mediaQuery.size.height * 0.01),
-                Tooltip(
-                  message:
-                      canBook
-                          ? 'Book now for ₹10'
-                          : 'Insufficient balance. Need ₹10 for booking.',
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: isSmallScreen ? 70 : 80,
+                  height: 36,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
                           canBook
-                              ? (isDarkTheme ? Colors.teal : Colors.amber)
-                              : Colors.grey,
+                              ? Theme.of(context).primaryColor
+                              : Colors.grey[400],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: mediaQuery.size.width * 0.04,
-                        vertical: mediaQuery.size.height * 0.01,
-                      ),
+                      elevation: canBook ? 2 : 0,
                     ),
                     onPressed:
                         canBook && !_isBooking
                             ? () => _showBookingConfirmation(
                               context,
                               vendor,
-                              jobType,
+                              widget.profession,
                             )
                             : null,
                     child:
                         _isBooking
                             ? SizedBox(
-                              width: mediaQuery.size.width * 0.05,
-                              height: mediaQuery.size.width * 0.05,
-                              child: const CircularProgressIndicator(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 color: Colors.white,
                               ),
                             )
                             : Text(
-                              canBook ? 'Book' : 'Low Balance',
+                              canBook
+                                  ? _t('Book', 'बुक करें')
+                                  : _t('Low Balance', 'कम बैलेंस'),
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                fontSize: mediaQuery.size.width * 0.035,
-                                color:
-                                    isDarkTheme ? Colors.white : Colors.black,
+                                fontSize: isSmallScreen ? 11 : 12,
                               ),
                             ),
                   ),
@@ -1004,33 +1434,6 @@ class _AvailableVendorState extends State<AvailableVendor> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildProfilePicture(
-    dynamic vendor,
-    bool isDarkTheme,
-    MediaQueryData mediaQuery,
-  ) {
-    final isMale = vendor['gender'] == 'Male';
-    final iconData = isMale ? Icons.person : Icons.person_outline;
-
-    return Container(
-      width: mediaQuery.size.width * 0.12,
-      height: mediaQuery.size.width * 0.12,
-      decoration: BoxDecoration(
-        color: isDarkTheme ? Colors.teal.shade100 : Colors.amber.shade100,
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: isDarkTheme ? Colors.teal : Colors.amber,
-          width: 2,
-        ),
-      ),
-      child: Icon(
-        iconData,
-        size: mediaQuery.size.width * 0.07,
-        color: isDarkTheme ? Colors.teal : Colors.amber,
       ),
     );
   }
@@ -1039,408 +1442,134 @@ class _AvailableVendorState extends State<AvailableVendor> {
     return Row(
       children: List.generate(5, (index) {
         if (index < rating.floor()) {
-          return Icon(Icons.star, color: Colors.amber, size: starSize);
+          return Icon(Icons.star_rounded, color: Colors.amber, size: starSize);
         } else if (index < rating && rating - index >= 0.5) {
-          return Icon(Icons.star_half, color: Colors.amber, size: starSize);
+          return Icon(
+            Icons.star_half_rounded,
+            color: Colors.amber,
+            size: starSize,
+          );
         } else {
-          return Icon(Icons.star_border, color: Colors.amber, size: starSize);
+          return Icon(
+            Icons.star_outline_rounded,
+            color: Colors.amber,
+            size: starSize,
+          );
         }
       }),
     );
   }
 
-  Widget _buildVendorStats(
-    dynamic vendor,
+  // ============================================================
+  // PAGINATION
+  // ============================================================
+
+  Widget _buildPaginationControls(
     bool isDarkTheme,
     MediaQueryData mediaQuery,
-    int completedVendor,
-    int experience,
+    bool isSmallScreen,
+    Color textColor,
+    Color secondaryTextColor,
   ) {
-    final List<Widget> stats = [];
+    final canGoBack = _pageNo > 1;
+    final canGoForward = itemCount > 12 && _pageNo < itemCount / 12;
+    final totalPage = (itemCount / 12).ceil();
 
-    if (completedVendor > 0) {
-      stats.add(
-        Row(
-          children: [
-            Icon(
-              Icons.check_circle,
-              color: Colors.green,
-              size: mediaQuery.size.width * 0.035,
-            ),
-            SizedBox(width: 2),
-            Text(
-              '$completedVendor Jobs',
-              style: TextStyle(
-                fontSize: mediaQuery.size.width * 0.032,
-                color: isDarkTheme ? Colors.black54 : Colors.white54,
-              ),
-            ),
-          ],
+    return Container(
+      height: 56,
+      margin: EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: isDarkTheme ? const Color(0xFF1A1A2E) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color:
+              isDarkTheme ? Colors.white.withOpacity(0.06) : Colors.grey[200]!,
         ),
-      );
-    }
-
-    if (experience > 0) {
-      stats.add(
-        Row(
-          children: [
-            Icon(
-              Icons.emoji_events,
-              color: Colors.orange,
-              size: mediaQuery.size.width * 0.035,
-            ),
-            SizedBox(width: 2),
-            Text(
-              '$experience Years',
-              style: TextStyle(
-                fontSize: mediaQuery.size.width * 0.032,
-                color: isDarkTheme ? Colors.black54 : Colors.white54,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (stats.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children:
-            stats
-                .map(
-                  (stat) => Padding(
-                    padding: EdgeInsets.only(
-                      right: mediaQuery.size.width * 0.03,
-                    ),
-                    child: stat,
-                  ),
-                )
-                .toList(),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDarkTheme ? 0.2 : 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-    );
-  }
-
-  String _maskPhoneNumber(String phone) {
-    if (phone.length < 10) return phone;
-    final visiblePart = phone.substring(0, 2);
-    final maskedPart = '*' * (phone.length - 4);
-    final lastTwo = phone.substring(phone.length - 2);
-    return '$visiblePart$maskedPart$lastTwo';
-  }
-
-  Widget _buildReviewsModal(bool isDarkTheme, MediaQueryData mediaQuery) {
-    return GestureDetector(
-      onTap: _closeReviewsModal,
-      child: Container(
-        color: Colors.black.withOpacity(0.5),
-        child: Center(
-          child: Container(
-            width: mediaQuery.size.width * 0.9,
-            height: mediaQuery.size.height * 0.8,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildPaginationButton(
+            icon: Icons.chevron_left_rounded,
+            onPressed: canGoBack ? () => _goToPreviousPage() : null,
+            isDarkTheme: isDarkTheme,
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
-              color: isDarkTheme ? Colors.grey[800] : Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              color: (isDarkTheme ? Colors.white : Colors.black).withOpacity(
+                0.06,
+              ),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Column(
+            child: Row(
               children: [
-                // Header
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '⭐ Reviews for ${_selectedVendorName?.toUpperCase() ?? ''}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: mediaQuery.size.width * 0.045,
-                            color: isDarkTheme ? Colors.white : Colors.black,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          Icons.close,
-                          color: isDarkTheme ? Colors.white : Colors.black,
-                        ),
-                        onPressed: _closeReviewsModal,
-                      ),
-                    ],
+                Text(
+                  '$_pageNo',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: isSmallScreen ? 14 : 16,
+                    color: textColor,
                   ),
                 ),
-                // Body
-                Expanded(
-                  child:
-                      _isReviewLoading
-                          ? Center(
-                            child: CircularProgressIndicator(
-                              color: isDarkTheme ? Colors.teal : Colors.amber,
-                            ),
-                          )
-                          : _reviews.isEmpty
-                          ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Text(
-                                  '📝',
-                                  style: TextStyle(fontSize: 48),
-                                ),
-                                SizedBox(height: 12),
-                                Text(
-                                  'No reviews yet',
-                                  style: TextStyle(
-                                    fontSize: mediaQuery.size.width * 0.04,
-                                    color:
-                                        isDarkTheme
-                                            ? Colors.white54
-                                            : Colors.black54,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                          : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: _reviews.length,
-                            itemBuilder: (context, index) {
-                              final review = _reviews[index];
-                              return _buildReviewItem(
-                                review,
-                                isDarkTheme,
-                                mediaQuery,
-                                index,
-                              );
-                            },
-                          ),
-                ),
-                // Footer
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: ElevatedButton(
-                    onPressed: _closeReviewsModal,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isDarkTheme ? Colors.teal : Colors.amber,
-                      minimumSize: Size(double.infinity, 40),
-                    ),
-                    child: Text(
-                      'Close Reviews',
-                      style: TextStyle(
-                        color: isDarkTheme ? Colors.white : Colors.black,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                Text(
+                  ' / $totalPage',
+                  style: TextStyle(
+                    fontSize: isSmallScreen ? 12 : 14,
+                    color: secondaryTextColor,
                   ),
                 ),
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReviewItem(
-    dynamic review,
-    bool isDarkTheme,
-    MediaQueryData mediaQuery,
-    int index,
-  ) {
-    // Get first letter of reviewer name safely
-    final String reviewerName = review['bookedById']?['name'] ?? '';
-    final String firstLetter =
-        reviewerName.isNotEmpty ? reviewerName[0].toUpperCase() : 'U';
-
-    // Get rating safely
-    final double ratingValue = _getRatingAsDouble(review['rating']);
-
-    // Format booking date to local time
-    String formattedDate = 'Date not specified';
-    if (review['bookingDate'] != null) {
-      try {
-        final DateTime utcDate = DateTime.parse(
-          review['bookingDate'].toString(),
-        );
-        // Convert to local time (Asia/Kolkata - UTC+5:30)
-        final DateTime localDate = utcDate.add(Duration(hours: 5, minutes: 30));
-        formattedDate = "${localDate.day}/${localDate.month}/${localDate.year}";
-      } catch (e) {
-        formattedDate = 'Invalid date';
-      }
-    }
-
-    // Format reviewed date to local time
-    String formattedReviewedOn = '';
-    if (review['reviewedOn'] != null) {
-      try {
-        final DateTime utcDate = DateTime.parse(
-          review['reviewedOn'].toString(),
-        );
-        final DateTime localDate = utcDate.add(Duration(hours: 5, minutes: 30));
-        formattedReviewedOn =
-            "${localDate.day}/${localDate.month}/${localDate.year}";
-      } catch (e) {
-        formattedReviewedOn = '';
-      }
-    }
-
-    return Column(
-      children: [
-        if (index > 0)
-          Divider(color: isDarkTheme ? Colors.grey[700] : Colors.grey[300]),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundColor:
-                            isDarkTheme ? Colors.teal : Colors.amber,
-                        child: Text(
-                          firstLetter,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            reviewerName.toUpperCase(),
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: mediaQuery.size.width * 0.04,
-                              color: isDarkTheme ? Colors.white : Colors.black,
-                            ),
-                          ),
-                          Text(
-                            review['bookingBy'] ?? 'User',
-                            style: TextStyle(
-                              fontSize: mediaQuery.size.width * 0.03,
-                              color:
-                                  isDarkTheme ? Colors.white54 : Colors.black54,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      ...List.generate(5, (starIndex) {
-                        return Icon(
-                          starIndex < ratingValue.floor()
-                              ? Icons.star
-                              : starIndex < ratingValue &&
-                                  ratingValue - starIndex >= 0.5
-                              ? Icons.star_half
-                              : Icons.star_border,
-                          color: Colors.amber,
-                          size: mediaQuery.size.width * 0.035,
-                        );
-                      }),
-                      const SizedBox(width: 4),
-                      Text(
-                        ratingValue.toStringAsFixed(1),
-                        style: TextStyle(
-                          fontSize: mediaQuery.size.width * 0.03,
-                          color: isDarkTheme ? Colors.white : Colors.black,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                review['review'] ?? 'No review text',
-                style: TextStyle(
-                  fontSize: mediaQuery.size.width * 0.035,
-                  color: isDarkTheme ? Colors.white70 : Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Text(
-                    '📅 $formattedDate',
-                    style: TextStyle(
-                      fontSize: mediaQuery.size.width * 0.03,
-                      color: isDarkTheme ? Colors.white54 : Colors.black54,
-                    ),
-                  ),
-                  if (formattedReviewedOn.isNotEmpty) ...[
-                    const SizedBox(width: 12),
-                    Text(
-                      'Reviewed: $formattedReviewedOn',
-                      style: TextStyle(
-                        fontSize: mediaQuery.size.width * 0.03,
-                        color: isDarkTheme ? Colors.white54 : Colors.black54,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPaginationControls(bool isDarkTheme, MediaQueryData mediaQuery) {
-    final canGoBack = _pageNo > 1;
-    final canGoForward = itemCount > 12 && _pageNo < itemCount / 12;
-
-    return Container(
-      margin: EdgeInsets.all(mediaQuery.size.width * 0.03),
-      height: mediaQuery.size.height * 0.06,
-      decoration: BoxDecoration(
-        color: isDarkTheme ? Colors.white : Colors.grey[850],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          IconButton(
-            icon: Icon(
-              Icons.arrow_back_ios,
-              size: mediaQuery.size.width * 0.05,
-            ),
-            color: isDarkTheme ? Colors.black : Colors.white,
-            onPressed: canGoBack ? () => _goToPreviousPage() : null,
-          ),
-          Text(
-            '$_pageNo',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: mediaQuery.size.width * 0.045,
-              color: isDarkTheme ? Colors.black : Colors.white,
-            ),
-          ),
-          IconButton(
-            icon: Icon(
-              Icons.arrow_forward_ios,
-              size: mediaQuery.size.width * 0.05,
-            ),
-            color: isDarkTheme ? Colors.black : Colors.white,
+          _buildPaginationButton(
+            icon: Icons.chevron_right_rounded,
             onPressed: canGoForward ? () => _goToNextPage() : null,
+            isDarkTheme: isDarkTheme,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPaginationButton({
+    required IconData icon,
+    VoidCallback? onPressed,
+    required bool isDarkTheme,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onPressed,
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color:
+                onPressed != null
+                    ? (isDarkTheme
+                        ? Colors.white.withOpacity(0.08)
+                        : Colors.black.withOpacity(0.04))
+                    : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            icon,
+            color:
+                onPressed != null
+                    ? (isDarkTheme ? Colors.white : Colors.black87)
+                    : (isDarkTheme ? Colors.white30 : Colors.grey[400]),
+            size: 24,
+          ),
+        ),
       ),
     );
   }
@@ -1459,13 +1588,351 @@ class _AvailableVendorState extends State<AvailableVendor> {
     await _refreshVendorList();
   }
 
-  String _capitalizeWords(String input) {
-    return input
-        .split(' ')
-        .map(
-          (word) =>
-              word.isNotEmpty ? word[0].toUpperCase() + word.substring(1) : '',
-        )
-        .join(' ');
+  // ============================================================
+  // REVIEWS MODAL
+  // ============================================================
+
+  Widget _buildReviewsModal(
+    bool isDarkTheme,
+    MediaQueryData mediaQuery,
+    bool isSmallScreen,
+    Color textColor,
+    Color secondaryTextColor,
+  ) {
+    return GestureDetector(
+      onTap: _closeReviewsModal,
+      child: Container(
+        color: Colors.black.withOpacity(0.6),
+        child: Center(
+          child: TweenAnimationBuilder(
+            duration: const Duration(milliseconds: 300),
+            tween: Tween<double>(begin: 0.8, end: 1.0),
+            builder: (context, value, child) {
+              return Transform.scale(scale: value, child: child);
+            },
+            child: Container(
+              width: mediaQuery.size.width * 0.92,
+              height: mediaQuery.size.height * 0.8,
+              decoration: BoxDecoration(
+                color: isDarkTheme ? const Color(0xFF1A1A2E) : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 30,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  // Header
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [_primaryBlue, _primaryPurple],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.star_rounded,
+                          color: Colors.amber,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _t(
+                              ' Reviews for ${_selectedVendorName?.toUpperCase() ?? widget.profession}',
+                              ' ${_selectedVendorName?.toUpperCase() ?? widget.hindiName} के लिए समीक्षाएँ',
+                            ),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Colors.white,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white,
+                          ),
+                          onPressed: _closeReviewsModal,
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Body
+                  Expanded(
+                    child:
+                        _isReviewLoading
+                            ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  CircularProgressIndicator(
+                                    color: Theme.of(context).primaryColor,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    _t(
+                                      'Loading reviews...',
+                                      'समीक्षाएँ लोड हो रही हैं...',
+                                    ),
+                                    style: TextStyle(color: secondaryTextColor),
+                                  ),
+                                ],
+                              ),
+                            )
+                            : _reviews.isEmpty
+                            ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Text(
+                                    '📝',
+                                    style: TextStyle(fontSize: 48),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    _t(
+                                      'No reviews yet',
+                                      'अभी कोई समीक्षा नहीं',
+                                    ),
+                                    style: TextStyle(
+                                      fontSize: mediaQuery.size.width * 0.04,
+                                      fontWeight: FontWeight.bold,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                  Text(
+                                    _t(
+                                      'Be the first to review!',
+                                      'समीक्षा करने वाले पहले व्यक्ति बनें!',
+                                    ),
+                                    style: TextStyle(
+                                      fontSize: mediaQuery.size.width * 0.032,
+                                      color: secondaryTextColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                            : ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _reviews.length,
+                              itemBuilder: (context, index) {
+                                final review = _reviews[index];
+                                return _buildReviewItem(
+                                  review,
+                                  isDarkTheme,
+                                  mediaQuery,
+                                  isSmallScreen,
+                                  index,
+                                  textColor,
+                                  secondaryTextColor,
+                                );
+                              },
+                            ),
+                  ),
+                  // Footer
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(
+                          color:
+                              isDarkTheme
+                                  ? Colors.white.withOpacity(0.06)
+                                  : Colors.grey[200]!,
+                        ),
+                      ),
+                    ),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _closeReviewsModal,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _primaryBlue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          _t('Close Reviews', 'समीक्षाएँ बंद करें'),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReviewItem(
+    dynamic review,
+    bool isDarkTheme,
+    MediaQueryData mediaQuery,
+    bool isSmallScreen,
+    int index,
+    Color textColor,
+    Color secondaryTextColor,
+  ) {
+    final String reviewerName = review['bookedById']?['name'] ?? '';
+    final String firstLetter =
+        reviewerName.isNotEmpty ? reviewerName[0].toUpperCase() : 'U';
+    final double ratingValue = _getRatingAsDouble(review['rating']);
+    final String reviewText =
+        review['review'] ?? _t('No review text', 'कोई समीक्षा पाठ नहीं');
+    final String bookingBy = review['bookingBy'] ?? 'User';
+
+    String formattedDate = _t('Date not specified', 'तारीख निर्दिष्ट नहीं');
+    if (review['bookingDate'] != null) {
+      try {
+        final DateTime utcDate = DateTime.parse(
+          review['bookingDate'].toString(),
+        );
+        final DateTime localDate = utcDate.add(
+          const Duration(hours: 5, minutes: 30),
+        );
+        formattedDate = "${localDate.day}/${localDate.month}/${localDate.year}";
+      } catch (e) {
+        formattedDate = _t('Invalid date', 'अमान्य तारीख');
+      }
+    }
+
+    final cardColor =
+        isDarkTheme ? Colors.white.withOpacity(0.03) : Colors.grey[50];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color:
+              isDarkTheme ? Colors.white.withOpacity(0.05) : Colors.grey[200]!,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [_primaryBlue, _primaryPurple],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        firstLetter,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        reviewerName.toUpperCase(),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: isSmallScreen ? 12 : 13,
+                          color: textColor,
+                        ),
+                      ),
+                      Text(
+                        bookingBy,
+                        style: TextStyle(
+                          fontSize: isSmallScreen ? 10 : 11,
+                          color: secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  ...List.generate(5, (starIndex) {
+                    return Icon(
+                      starIndex < ratingValue.floor()
+                          ? Icons.star_rounded
+                          : starIndex < ratingValue &&
+                              ratingValue - starIndex >= 0.5
+                          ? Icons.star_half_rounded
+                          : Icons.star_outline_rounded,
+                      color: Colors.amber,
+                      size: isSmallScreen ? 14 : 16,
+                    );
+                  }),
+                  const SizedBox(width: 4),
+                  Text(
+                    ratingValue.toStringAsFixed(1),
+                    style: TextStyle(
+                      fontSize: isSmallScreen ? 11 : 12,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            reviewText,
+            style: TextStyle(
+              fontSize: isSmallScreen ? 12 : 13,
+              color: textColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '📅 $formattedDate',
+            style: TextStyle(
+              fontSize: isSmallScreen ? 10 : 11,
+              color: secondaryTextColor,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -25,6 +25,15 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
     'month': 'This Month',
     'year': 'This Year',
   };
+  final Map<String, String> _timeRangeLabelsHi = {
+    'all': 'सभी समय',
+    'week': 'इस सप्ताह',
+    'month': 'इस महीने',
+    'year': 'इस वर्ष',
+  };
+
+  // Language helper
+  String _t(String en, String hi) => isHindiNotifier.value ? hi : en;
 
   @override
   void initState() {
@@ -46,7 +55,7 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
 
       if (categoryData == null) {
         setState(() {
-          _error = 'User data not found';
+          _error = _t('User data not found', 'उपयोगकर्ता डेटा नहीं मिला');
           _isLoading = false;
         });
         return;
@@ -71,19 +80,27 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
           });
         } else {
           setState(() {
-            _error = data['message'] ?? 'Failed to fetch stats';
+            _error =
+                data['message'] ??
+                _t('Failed to fetch stats', 'आँकड़े प्राप्त करने में विफल');
             _isLoading = false;
           });
         }
       } else {
         setState(() {
-          _error = 'Failed to fetch transaction stats';
+          _error = _t(
+            'Failed to fetch transaction stats',
+            'लेन-देन आँकड़े प्राप्त करने में विफल',
+          );
           _isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        _error = 'Error fetching transaction stats';
+        _error = _t(
+          'Error fetching transaction stats',
+          'लेन-देन आँकड़े प्राप्त करने में त्रुटि',
+        );
         _isLoading = false;
       });
     }
@@ -91,28 +108,16 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
 
   String _getStatusLabel(String? status) {
     if (status == null) return 'UNKNOWN';
+    final isHindi = isHindiNotifier.value;
     final statusMap = {
-      'completed': 'Completed',
-      'pending': 'Pending',
-      'initiated': 'Initiated',
-      'failed': 'Failed',
-      'abandoned': 'Abandoned',
-      'refunded': 'Refunded',
+      'completed': isHindi ? 'पूर्ण' : 'Completed',
+      'pending': isHindi ? 'लंबित' : 'Pending',
+      'initiated': isHindi ? 'शुरू' : 'Initiated',
+      'failed': isHindi ? 'विफल' : 'Failed',
+      'abandoned': isHindi ? 'छोड़ा' : 'Abandoned',
+      'refunded': isHindi ? 'वापस' : 'Refunded',
     };
     return statusMap[status] ?? status.toUpperCase();
-  }
-
-  String _getStatusColor(String? status) {
-    if (status == null) return 'unknown';
-    final colorMap = {
-      'completed': 'completed',
-      'pending': 'pending',
-      'initiated': 'initiated',
-      'failed': 'failed',
-      'abandoned': 'abandoned',
-      'refunded': 'refunded',
-    };
-    return colorMap[status] ?? 'unknown';
   }
 
   Color _getStatusColorValue(String? status) {
@@ -150,18 +155,28 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
+    final surface = colorScheme.surface;
+    final onSurface = colorScheme.onSurface;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.grey[900] : Colors.grey[50],
+      backgroundColor:
+          isDark ? const Color(0xFF0B1020) : const Color(0xFFF7F9FC),
       appBar: AppBar(
-        title: const Text(
-          'Transaction Statistics',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+        title: Text(
+          _t('Transaction Statistics', 'लेन-देन आँकड़े'),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+            color: isDark ? Colors.white : onSurface,
+          ),
         ),
-        backgroundColor: isDark ? Colors.grey[850] : Colors.white,
+        backgroundColor: isDark ? const Color(0xFF1A1A2E) : surface,
         elevation: 0,
-        foregroundColor: isDark ? Colors.white : Colors.black87,
+        foregroundColor: isDark ? Colors.white : onSurface,
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new),
@@ -170,32 +185,35 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
       ),
       body:
           _isLoading
-              ? _buildLoadingState()
+              ? _buildLoadingState(primaryColor)
               : _error != null
-              ? _buildErrorState()
+              ? _buildErrorState(primaryColor)
               : _stats == null
-              ? _buildEmptyState()
-              : _buildContent(isDark),
+              ? _buildEmptyState(isDark)
+              : _buildContent(isDark, surface, onSurface, primaryColor),
     );
   }
 
-  Widget _buildLoadingState() {
-    return const Center(
+  Widget _buildLoadingState(Color primaryColor) {
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
+          CircularProgressIndicator(color: primaryColor),
+          const SizedBox(height: 16),
           Text(
-            'Loading transaction stats...',
-            style: TextStyle(color: Colors.grey),
+            _t(
+              'Loading transaction stats...',
+              'लेन-देन आँकड़े लोड हो रहे हैं...',
+            ),
+            style: const TextStyle(color: Colors.grey),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildErrorState() {
+  Widget _buildErrorState(Color primaryColor) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -211,46 +229,58 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
           ElevatedButton(
             onPressed: _fetchStats,
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue.shade600,
+              backgroundColor: primaryColor,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
+              elevation: 0,
             ),
-            child: const Text('Retry'),
+            child: Text(_t('Retry', 'पुनः प्रयास करें')),
           ),
           const SizedBox(height: 8),
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Back'),
+            child: Text(_t('Back', 'वापस')),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return const Center(
+  Widget _buildEmptyState(bool isDark) {
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
-          SizedBox(height: 16),
+          Icon(
+            Icons.inbox_outlined,
+            size: 64,
+            color: isDark ? Colors.grey[600] : Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
           Text(
-            'No transaction data available',
-            style: TextStyle(color: Colors.grey, fontSize: 16),
+            _t('No transaction data available', 'कोई लेन-देन डेटा उपलब्ध नहीं'),
+            style: TextStyle(
+              color: isDark ? Colors.grey[400] : Colors.grey[600],
+              fontSize: 16,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildContent(bool isDark) {
+  Widget _buildContent(
+    bool isDark,
+    Color surface,
+    Color onSurface,
+    Color primaryColor,
+  ) {
     final summary = _stats?['summary'] as Map<String, dynamic>?;
     final statusStats = _stats?['stats'] as List? ?? [];
     final totalCount = summary?['total'] ?? 0;
 
-    // Filter out null/undefined statuses
     final filteredStatusStats =
         statusStats.where((stat) {
           return stat['_id'] != null;
@@ -262,22 +292,28 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Time Filter
-          _buildTimeFilter(isDark),
+          _buildTimeFilter(isDark, surface, onSurface, primaryColor),
 
           const SizedBox(height: 20),
 
           // Summary Cards
-          _buildSummaryCards(summary, totalCount, isDark),
+          _buildSummaryCards(summary, totalCount, isDark, surface, onSurface),
 
           const SizedBox(height: 24),
 
           // Status Breakdown
-          _buildStatusBreakdown(filteredStatusStats, totalCount, isDark),
+          _buildStatusBreakdown(
+            filteredStatusStats,
+            totalCount,
+            isDark,
+            surface,
+            onSurface,
+          ),
 
           const SizedBox(height: 24),
 
           // Quick Stats
-          _buildQuickStats(summary, totalCount, isDark),
+          _buildQuickStats(summary, totalCount, isDark, surface, onSurface),
 
           const SizedBox(height: 16),
         ],
@@ -285,17 +321,31 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
     );
   }
 
-  Widget _buildTimeFilter(bool isDark) {
+  Widget _buildTimeFilter(
+    bool isDark,
+    Color surface,
+    Color onSurface,
+    Color primaryColor,
+  ) {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[800] : Colors.grey[100],
+        color: isDark ? const Color(0xFF1A1A2E) : Colors.grey[100],
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color:
+              isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFE8ECF3),
+          width: 1,
+        ),
       ),
       child: Row(
         children:
             _timeRanges.map((range) {
               final isSelected = _timeRange == range;
+              final label =
+                  isHindiNotifier.value
+                      ? _timeRangeLabelsHi[range]!
+                      : _timeRangeLabels[range]!;
               return Expanded(
                 child: GestureDetector(
                   onTap: () {
@@ -304,25 +354,38 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
                     });
                     _fetchStats();
                   },
-                  child: Container(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
                       color:
                           isSelected
-                              ? (isDark ? Colors.grey[700] : Colors.white)
+                              ? (isDark
+                                  ? const Color(0xFF2A2A3E)
+                                  : Colors.white)
                               : Colors.transparent,
                       borderRadius: BorderRadius.circular(10),
+                      boxShadow:
+                          isSelected
+                              ? [
+                                BoxShadow(
+                                  color: primaryColor.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                              : null,
                     ),
                     child: Center(
                       child: Text(
-                        _timeRangeLabels[range]!,
+                        label,
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.normal,
+                              isSelected ? FontWeight.w700 : FontWeight.w500,
                           color:
                               isSelected
-                                  ? (isDark ? Colors.white : Colors.black87)
+                                  ? primaryColor
                                   : (isDark
                                       ? Colors.grey[400]
                                       : Colors.grey[600]),
@@ -341,6 +404,8 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
     Map<String, dynamic>? summary,
     int totalCount,
     bool isDark,
+    Color surface,
+    Color onSurface,
   ) {
     return GridView.count(
       shrinkWrap: true,
@@ -352,54 +417,55 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
       children: [
         _buildStatCard(
           '📊',
-          'Total Transactions',
+          _t('Total Transactions', 'कुल लेन-देन'),
           (summary?['total'] ?? 0).toString(),
           Colors.blue,
           isDark,
         ),
         _buildStatCard(
           '✅',
-          'Successful',
+          _t('Successful', 'सफल'),
           (summary?['completed'] ?? 0).toString(),
           Colors.green,
           isDark,
-          subtitle: '${summary?['conversionRate'] ?? 0}% conversion',
+          subtitle:
+              '${summary?['conversionRate'] ?? 0}% ${_t('conversion', 'रूपांतरण')}',
         ),
         _buildStatCard(
           '💰',
-          'Total Recharge',
+          _t('Total Recharge', 'कुल रिचार्ज'),
           '₹${summary?['totalRevenue'] ?? 0}',
           Colors.purple,
           isDark,
         ),
         _buildStatCard(
           '🏷️',
-          'Total Discount',
+          _t('Total Discount', 'कुल छूट'),
           '₹${summary?['totalDiscountGiven'] ?? 0}',
           Colors.orange,
           isDark,
         ),
         _buildStatCard(
           '🚫',
-          'Abandoned',
+          _t('Abandoned', 'छोड़ा गया'),
           (summary?['abandoned'] ?? 0).toString(),
           Colors.grey,
           isDark,
           subtitle:
               totalCount > 0
-                  ? '${((summary?['abandoned'] ?? 0) / totalCount * 100).toStringAsFixed(1)}% abandoned'
-                  : '0% abandoned',
+                  ? '${((summary?['abandoned'] ?? 0) / totalCount * 100).toStringAsFixed(1)}% ${_t('abandoned', 'छोड़ा')}'
+                  : '0% ${_t('abandoned', 'छोड़ा')}',
         ),
         _buildStatCard(
           '❌',
-          'Failed',
+          _t('Failed', 'विफल'),
           (summary?['failed'] ?? 0).toString(),
           Colors.red,
           isDark,
           subtitle:
               totalCount > 0
-                  ? '${((summary?['failed'] ?? 0) / totalCount * 100).toStringAsFixed(1)}% failed'
-                  : '0% failed',
+                  ? '${((summary?['failed'] ?? 0) / totalCount * 100).toStringAsFixed(1)}% ${_t('failed', 'विफल')}'
+                  : '0% ${_t('failed', 'विफल')}',
         ),
       ],
     );
@@ -416,7 +482,7 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[850] : Colors.white,
+        color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withOpacity(0.2), width: 1),
         boxShadow: [
@@ -470,12 +536,19 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
     List<dynamic> statusStats,
     int totalCount,
     bool isDark,
+    Color surface,
+    Color onSurface,
   ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[850] : Colors.white,
+        color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color:
+              isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFE8ECF3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -488,11 +561,11 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Status Breakdown',
+            _t('Status Breakdown', 'स्थिति विवरण'),
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
+              color: isDark ? Colors.white : onSurface,
             ),
           ),
           const SizedBox(height: 12),
@@ -501,7 +574,10 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(
-                  'No transaction status data available',
+                  _t(
+                    'No transaction status data available',
+                    'कोई लेन-देन स्थिति डेटा उपलब्ध नहीं',
+                  ),
                   style: TextStyle(
                     color: isDark ? Colors.grey[400] : Colors.grey[600],
                   ),
@@ -540,16 +616,14 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
                                         fontSize: 13,
                                         fontWeight: FontWeight.w500,
                                         color:
-                                            isDark
-                                                ? Colors.white
-                                                : Colors.black87,
+                                            isDark ? Colors.white : onSurface,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
                               Text(
-                                '$count transactions (${percentage.toStringAsFixed(1)}%)',
+                                '$count ${_t('transactions', 'लेन-देन')} (${percentage.toStringAsFixed(1)}%)',
                                 style: TextStyle(
                                   fontSize: 11,
                                   color:
@@ -576,7 +650,7 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                'Amount: ₹${stat['totalAmount'] ?? 0}',
+                                '${_t('Amount', 'राशि')}: ₹${stat['totalAmount'] ?? 0}',
                                 style: TextStyle(
                                   fontSize: 10,
                                   color:
@@ -586,7 +660,7 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
                                 ),
                               ),
                               Text(
-                                'Discount: ₹${stat['totalDiscount'] ?? 0}',
+                                '${_t('Discount', 'छूट')}: ₹${stat['totalDiscount'] ?? 0}',
                                 style: TextStyle(
                                   fontSize: 10,
                                   color:
@@ -611,6 +685,8 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
     Map<String, dynamic>? summary,
     int totalCount,
     bool isDark,
+    Color surface,
+    Color onSurface,
   ) {
     final avgTransaction =
         totalCount > 0 && (summary?['completed'] ?? 0) > 0
@@ -621,8 +697,13 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[850] : Colors.white,
+        color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color:
+              isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFE8ECF3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -635,11 +716,11 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Quick Stats',
+            _t('Quick Stats', 'त्वरित आँकड़े'),
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
+              color: isDark ? Colors.white : onSurface,
             ),
           ),
           const SizedBox(height: 12),
@@ -652,25 +733,25 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
             childAspectRatio: 2.5,
             children: [
               _buildQuickStat(
-                'Initiated',
+                _t('Initiated', 'शुरू'),
                 (summary?['initiated'] ?? 0).toString(),
                 Colors.blue,
                 isDark,
               ),
               _buildQuickStat(
-                'Pending',
+                _t('Pending', 'लंबित'),
                 (summary?['pending'] ?? 0).toString(),
                 Colors.orange,
                 isDark,
               ),
               _buildQuickStat(
-                'Success Rate',
+                _t('Success Rate', 'सफलता दर'),
                 '${summary?['conversionRate'] ?? 0}%',
                 Colors.green,
                 isDark,
               ),
               _buildQuickStat(
-                'Avg. Transaction',
+                _t('Avg. Transaction', 'औसत लेन-देन'),
                 '₹$avgTransaction',
                 Colors.purple,
                 isDark,
@@ -686,7 +767,7 @@ class _TransactionStatsPageState extends State<TransactionStatsPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[800] : Colors.grey[50],
+        color: isDark ? const Color(0xFF252540) : Colors.grey[50],
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withOpacity(0.2), width: 1),
       ),

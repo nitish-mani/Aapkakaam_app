@@ -17,12 +17,12 @@ ValueNotifier<DateTime> selectedDateNotifier = ValueNotifier<DateTime>(
 ); // Holds the selected date for booking
 ValueNotifier<int> bookingCountNotifier = ValueNotifier<int>(0);
 
-ValueNotifier<bool> isDarkThemeNotifier = ValueNotifier<bool>(true);
+ValueNotifier<bool> isDarkThemeNotifier = ValueNotifier<bool>(false);
 
 ValueNotifier<bool> isVendor = ValueNotifier<bool>(false);
 ValueNotifier<bool> isLoggedIn = ValueNotifier<bool>(false);
-ValueNotifier<bool> isAddressAvailable = ValueNotifier<bool>(true);
-ValueNotifier<bool> isWageRateAvailable = ValueNotifier<bool>(true);
+ValueNotifier<bool> isAddressAvailable = ValueNotifier<bool>(false);
+ValueNotifier<bool> isWageRateAvailable = ValueNotifier<bool>(false);
 
 ValueNotifier<String> savedImagePath = ValueNotifier<String>('');
 ValueNotifier<String> fcmToken = ValueNotifier<String>('');
@@ -39,3 +39,4 @@ final ValueNotifier<String?> pendingNotificationBookingIdNotifier =
     ValueNotifier<String?>(null);
 final ValueNotifier<Map<String, dynamic>?> pendingNotificationDataNotifier =
     ValueNotifier<Map<String, dynamic>?>(null);
+final ValueNotifier<bool> isHindiNotifier = ValueNotifier<bool>(true);

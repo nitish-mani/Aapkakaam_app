@@ -3,13 +3,18 @@ import 'dart:convert';
 
 import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
+import 'package:app_aapkakaam/appBarWidgets/wallet_page.dart';
 import 'package:app_aapkakaam/models/data_model.dart';
+import 'package:app_aapkakaam/widgets/concern.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+// import 'package:flutter/material.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 /// ============================================================
 /// BACKGROUND FCM HANDLER
@@ -936,100 +941,112 @@ class FirebaseNotifications {
   // ============================================================
   // NOTIFICATION DATA
   // ============================================================
-
   static void _handleNotificationData(Map<String, dynamic> data) {
     debugPrint('========== NOTIFICATION CLICK ==========');
 
     debugPrint('FULL DATA: ${jsonEncode(data)}');
 
-    debugPrint('type: ${data['type']}');
+    final type = data['type']?.toString();
+    final screen = data['screen']?.toString();
+    final notificationType = data['notificationType']?.toString();
+    final recipientRole = data['recipientRole']?.toString();
 
-    debugPrint(
-      'notificationType: '
-      '${data['notificationType']}',
-    );
-
-    debugPrint(
-      'recipientRole: '
-      '${data['recipientRole']}',
-    );
-
-    debugPrint(
-      'bookingId: '
-      '${data['bookingId']}',
-    );
-
+    debugPrint('type: $type');
+    debugPrint('screen: $screen');
+    debugPrint('notificationType: $notificationType');
+    debugPrint('recipientRole: $recipientRole');
+    debugPrint('bookingId: ${data['bookingId']}');
+    debugPrint('concernId: ${data['concernId']}');
     debugPrint('id: ${data['id']}');
-
     debugPrint('month: ${data['month']}');
-
     debugPrint('year: ${data['year']}');
 
     debugPrint('========================================');
 
     try {
-      debugPrint('Handling notification data: $data');
+      // ==========================================================
+      // WALLET
+      // ==========================================================
 
-      // --------------------------------------------------------
-      // Extract metadata
-      // --------------------------------------------------------
+      if (type == 'wallet' || screen == 'wallet') {
+        debugPrint('Opening WalletPage from notification');
 
-      final type = data['type']?.toString();
+        final navigator = navigatorKey.currentState;
 
-      final recipientRole = data['recipientRole']?.toString();
+        if (navigator == null) {
+          debugPrint('ERROR: Navigator is not ready');
+          return;
+        }
 
-      final notificationType = data['notificationType']?.toString();
+        navigator.push(MaterialPageRoute(builder: (_) => const WalletPage()));
 
-      debugPrint(
-        'Notification type: '
-        '$notificationType',
-      );
+        return;
+      }
 
-      debugPrint(
-        'Recipient role: '
-        '$recipientRole',
-      );
+      // ==========================================================
+      // CONCERN
+      // ==========================================================
+      //
+      // Actual backend payload:
+      //
+      // type       = concern_status
+      // screen     = concerns
+      // concernId  = 6a8a84...
+      //
+      // ==========================================================
 
-      debugPrint(
-        'Booking ID: '
-        '${data['bookingId'] ?? data['id']}',
-      );
+      if (type == 'concern_status' ||
+          type == 'concern' ||
+          screen == 'concerns' ||
+          screen == 'concern') {
+        debugPrint('========== CONCERN NOTIFICATION ==========');
 
-      // --------------------------------------------------------
+        final concernId = data['concernId']?.toString();
+
+        debugPrint('Concern ID: $concernId');
+        debugPrint('Concern status: ${data['status']}');
+        debugPrint('Concern subject: ${data['subject']}');
+
+        if (concernId == null || concernId.isEmpty) {
+          debugPrint('ERROR: concernId missing from notification');
+          return;
+        }
+
+        final navigator = navigatorKey.currentState;
+
+        if (navigator == null) {
+          debugPrint('ERROR: navigatorKey.currentState is null');
+          return;
+        }
+
+        debugPrint('Opening ConcernPage: $concernId');
+
+        navigator.push(MaterialPageRoute(builder: (_) => ConcernsPage()));
+
+        return;
+      }
+
+      // ==========================================================
       // BOOKING
-      // --------------------------------------------------------
+      // ==========================================================
 
       switch (type) {
         case 'booking':
-
-          // ----------------------------------------------------
-          // Vendor → New Booking
-          // ----------------------------------------------------
-
           if (notificationType == 'new_booking' && recipientRole == 'vendor') {
             _handleVendorNewBooking(data);
-          }
-          // ----------------------------------------------------
-          // User → Booking Confirmed
-          // ----------------------------------------------------
-          else if (notificationType == 'booking_confirmed' &&
+          } else if (notificationType == 'booking_confirmed' &&
               recipientRole == 'user') {
             _handleUserBookingConfirmed(data);
-          }
-          // ----------------------------------------------------
-          // Backward compatibility
-          // ----------------------------------------------------
-          else {
+          } else {
             _updateUIForBooking(data);
-
             _refreshBookingsData();
           }
 
           break;
 
-        // ------------------------------------------------------
+        // ========================================================
         // CANCELLED
-        // ------------------------------------------------------
+        // ========================================================
 
         case 'cancelled':
           if (notificationType == 'booking_cancelled' &&
@@ -1037,30 +1054,47 @@ class FirebaseNotifications {
             _handleVendorBookingCancelled(data);
           } else {
             _updateUIForCancellation(data);
-
             _refreshBookingsData();
           }
 
           break;
 
-        // ------------------------------------------------------
+        // ========================================================
         // PROFILE
-        // ------------------------------------------------------
+        // ========================================================
 
         case 'profile_update':
           profileRefreshNotifier.value = !profileRefreshNotifier.value;
 
           break;
 
-        // ------------------------------------------------------
+        // ========================================================
+        // LOW BALANCE
+        // ========================================================
+
+        case 'low_balance':
+          debugPrint('Opening WalletPage for low balance notification');
+
+          final navigator = navigatorKey.currentState;
+
+          if (navigator == null) {
+            debugPrint('ERROR: navigatorKey.currentState is null');
+            return;
+          }
+
+          navigator.push(MaterialPageRoute(builder: (_) => const WalletPage()));
+
+          break;
+
+        // ========================================================
         // UNKNOWN
-        // ------------------------------------------------------
+        // ========================================================
 
         default:
-          if (data['screen']?.toString() == 'profile') {
-            // Add profile navigation
-            // if required.
-          }
+          debugPrint(
+            'Unknown notification navigation: '
+            'type=$type, screen=$screen',
+          );
 
           break;
       }
@@ -1071,7 +1105,6 @@ class FirebaseNotifications {
     }
   }
 
-  // ============================================================
   // MESSAGE HASH
   // ============================================================
 

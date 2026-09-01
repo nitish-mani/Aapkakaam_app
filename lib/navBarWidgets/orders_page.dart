@@ -1,10 +1,10 @@
-// this file is made responsive for all devices.
+// this file is made responsive for all devices with modern UI/UX.
 
 import 'dart:convert';
 import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:app_aapkakaam/models/data_model.dart';
-import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
+// import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,7 +16,8 @@ class OrdersPage extends StatefulWidget {
   State<OrdersPage> createState() => _OrdersPageState();
 }
 
-class _OrdersPageState extends State<OrdersPage> {
+class _OrdersPageState extends State<OrdersPage>
+    with SingleTickerProviderStateMixin {
   Future<Map<String, dynamic>>? futureCards;
   int orderDetails = 1;
   UserModel? user;
@@ -29,15 +30,29 @@ class _OrdersPageState extends State<OrdersPage> {
   final TextEditingController ratingController = TextEditingController();
   final TextEditingController reviewController = TextEditingController();
   int _selectedRating = 0;
+  int _hoveredRating = 0;
+  late TabController _tabController;
 
   // Counters for badges
   int pendingCount = 0;
   int completedCount = 0;
   int canceledCount = 0;
 
+  // Store current user ID for self-booking detection
+  String? currentUserId;
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) {
+        setState(() {
+          orderDetails = _tabController.index + 1;
+        });
+      }
+    });
+
     isLoadingC = {};
     isLoading = {};
     _loadUserData();
@@ -45,6 +60,7 @@ class _OrdersPageState extends State<OrdersPage> {
 
   @override
   void dispose() {
+    _tabController.dispose();
     ratingController.dispose();
     reviewController.dispose();
     super.dispose();
@@ -65,6 +81,44 @@ class _OrdersPageState extends State<OrdersPage> {
     return '';
   }
 
+  // ============================================================
+  // UTC TO ASIA/KOLKATA TIMEZONE CONVERTER
+  // ============================================================
+
+  /// Converts UTC DateTime to Asia/Kolkata timezone (UTC+5:30)
+  DateTime _toAsiaKolkata(DateTime utcDate) {
+    if (utcDate == null) return DateTime.now();
+    // Add 5 hours 30 minutes to convert UTC to Asia/Kolkata
+    return utcDate.add(const Duration(hours: 5, minutes: 30));
+  }
+
+  /// Parses date from string and converts to Asia/Kolkata timezone
+  DateTime _parseAndConvertToAsiaKolkata(String? dateString) {
+    if (dateString == null || dateString.isEmpty) return DateTime.now();
+    try {
+      final utcDate = DateTime.parse(dateString);
+      return _toAsiaKolkata(utcDate);
+    } catch (e) {
+      debugPrint('Date parsing error: $e');
+      return DateTime.now();
+    }
+  }
+
+  /// Formats date in Asia/Kolkata timezone
+  String _formatDate(DateTime date) {
+    final isHindi = isHindiNotifier.value;
+    // Convert to Asia/Kolkata if not already
+    final localDate = date;
+
+    if (isHindi) {
+      return '${localDate.day}/${localDate.month}/${localDate.year}';
+    }
+    return '${localDate.day}/${localDate.month}/${localDate.year}';
+  }
+
+  // Language helper
+  String _t(String en, String hi) => isHindiNotifier.value ? hi : en;
+
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
     final userData = prefs.getString('user');
@@ -74,6 +128,7 @@ class _OrdersPageState extends State<OrdersPage> {
       final decodedUser = jsonDecode(userData);
       setState(() {
         user = UserModel.fromJson(decodedUser);
+        currentUserId = decodedUser['userId']?.toString();
         futureCards = _fetchCards(
           decodedUser['userId'],
           pageNo,
@@ -86,6 +141,7 @@ class _OrdersPageState extends State<OrdersPage> {
       final decodedVendor = jsonDecode(vendorData);
       setState(() {
         vendor = VendorModel.fromJson(decodedVendor);
+        currentUserId = decodedVendor['vendorId']?.toString();
         futureCards = _fetchCards(
           decodedVendor['vendorId'],
           pageNo,
@@ -111,10 +167,10 @@ class _OrdersPageState extends State<OrdersPage> {
 
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
-        print(jsonResponse);
         totalOrders = jsonResponse['total'] ?? 0;
         initializeIsLoadingCFromResponse(jsonResponse);
         _calculateOrderCounts(jsonResponse);
+        print(jsonResponse);
         return jsonResponse;
       }
       throw Exception("Failed to load orders: ${response.statusCode}");
@@ -134,8 +190,7 @@ class _OrdersPageState extends State<OrdersPage> {
         canceled++;
       } else if (order['orderCompleted'] == true) {
         completed++;
-      } else if (order['cancelOrder'] == false &&
-          order['orderCompleted'] == false) {
+      } else {
         pending++;
       }
     }
@@ -165,7 +220,7 @@ class _OrdersPageState extends State<OrdersPage> {
     }
   }
 
-  // Show confirmation dialog
+  // Show confirmation dialog with theme colors
   Future<bool> _showConfirmationDialog(
     BuildContext context,
     String title,
@@ -173,26 +228,68 @@ class _OrdersPageState extends State<OrdersPage> {
     String confirmText,
     Color confirmColor,
   ) async {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return await showDialog<bool>(
       context: context,
       builder:
           (dialogContext) => AlertDialog(
-            title: Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-            content: Text(message),
+            backgroundColor: colorScheme.surface,
+            title: Row(
+              children: [
+                Icon(
+                  confirmColor == colorScheme.error
+                      ? Icons.warning_amber_rounded
+                      : Icons.check_circle_outline,
+                  color: confirmColor,
+                ),
+                SizedBox(width: 12),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              message,
+              style: TextStyle(fontSize: 15, color: colorScheme.onSurface),
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('No', style: TextStyle(color: Colors.grey)),
+                child: Text(
+                  _t('Cancel', 'रद्द करें'),
+                  style: TextStyle(
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.of(dialogContext).pop(true),
-                style: ElevatedButton.styleFrom(backgroundColor: confirmColor),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: confirmColor,
+                  foregroundColor: colorScheme.onPrimary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  elevation: 0,
+                ),
                 child: Text(
                   confirmText,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(
+                    color: colorScheme.onPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -200,22 +297,32 @@ class _OrdersPageState extends State<OrdersPage> {
     ).then((value) => value ?? false);
   }
 
-  // Cancel Order
+  // Cancel Order with Bilingual Support
   Future<void> _handleCancelOrder({
     required BuildContext context,
     required String bookingId,
   }) async {
+    final isHindi = isHindiNotifier.value;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     if (bookingId.isEmpty) {
-      _showSnackBar(context, 'Booking ID is required', false);
+      _showSnackBar(
+        context,
+        isHindi ? 'बुकिंग आईडी आवश्यक है' : 'Booking ID is required',
+        false,
+      );
       return;
     }
 
     final confirmed = await _showConfirmationDialog(
       context,
-      'Cancel Order',
-      'Are you sure you want to cancel this order?',
-      'Yes, Cancel',
-      Colors.red,
+      isHindi ? 'ऑर्डर रद्द करें' : 'Cancel Order',
+      isHindi
+          ? 'क्या आप वाकई इस ऑर्डर को रद्द करना चाहते हैं? यह कार्रवाई वापस नहीं ली जा सकती।'
+          : 'Are you sure you want to cancel this order? This action cannot be undone.',
+      isHindi ? 'हाँ, रद्द करें' : 'Yes, Cancel',
+      colorScheme.error,
     );
 
     if (!confirmed) return;
@@ -245,20 +352,21 @@ class _OrdersPageState extends State<OrdersPage> {
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-
         if (isVendorUser && vendor != null) {
           await _updateVendorData(responseData);
         } else if (user != null) {
           await _updateUserData(responseData);
         }
-
         setState(() {
           updateIsLoadingForIdC(bookingId, false);
           futureCards = _fetchCards(userId, pageNo, token);
         });
         _showSnackBar(
           context,
-          responseData['message'] ?? 'Order cancelled successfully',
+          responseData['message'] ??
+              (isHindi
+                  ? 'ऑर्डर सफलतापूर्वक रद्द कर दिया गया'
+                  : 'Order cancelled successfully'),
           true,
         );
       } else {
@@ -266,32 +374,43 @@ class _OrdersPageState extends State<OrdersPage> {
         final error = jsonDecode(response.body);
         _showSnackBar(
           context,
-          error['message'] ?? 'Failed to cancel order',
+          error['message'] ??
+              (isHindi ? 'ऑर्डर रद्द करने में विफल' : 'Failed to cancel order'),
           false,
         );
       }
     } catch (e) {
       setState(() => updateIsLoadingForIdC(bookingId, false));
-      _showSnackBar(context, "Error: $e", false);
+      _showSnackBar(context, isHindi ? 'त्रुटि: $e' : "Error: $e", false);
     }
   }
 
-  // Mark as Completed
+  // Mark as Completed with Bilingual Support
   Future<void> _handleMarkAsCompletedOrder({
     required BuildContext context,
     required String bookingId,
   }) async {
+    final isHindi = isHindiNotifier.value;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     if (bookingId.isEmpty) {
-      _showSnackBar(context, 'Booking ID is required', false);
+      _showSnackBar(
+        context,
+        isHindi ? 'बुकिंग आईडी आवश्यक है' : 'Booking ID is required',
+        false,
+      );
       return;
     }
 
     final confirmed = await _showConfirmationDialog(
       context,
-      'Mark as Completed',
-      'Are you sure you want to mark this order as completed?',
-      'Yes, Complete',
-      Colors.green,
+      isHindi ? 'पूर्ण के रूप में चिह्नित करें' : 'Mark as Completed',
+      isHindi
+          ? 'क्या आप वाकई इस ऑर्डर को पूर्ण के रूप में चिह्नित करना चाहते हैं?'
+          : 'Are you sure you want to mark this order as completed?',
+      isHindi ? 'हाँ, पूर्ण करें' : 'Yes, Complete',
+      colorScheme.primary,
     );
 
     if (!confirmed) return;
@@ -321,20 +440,21 @@ class _OrdersPageState extends State<OrdersPage> {
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
-
         if (isVendorUser && vendor != null) {
           await _updateVendorData(responseData);
         } else if (user != null) {
           await _updateUserData(responseData);
         }
-
         setState(() {
           updateIsLoadingForId(bookingId, false);
           futureCards = _fetchCards(userId, pageNo, token);
         });
         _showSnackBar(
           context,
-          responseData['message'] ?? 'Order completed successfully',
+          responseData['message'] ??
+              (isHindi
+                  ? 'ऑर्डर सफलतापूर्वक पूर्ण किया गया'
+                  : 'Order completed successfully'),
           true,
         );
       } else {
@@ -342,13 +462,16 @@ class _OrdersPageState extends State<OrdersPage> {
         final error = jsonDecode(response.body);
         _showSnackBar(
           context,
-          error['message'] ?? 'Failed to complete order',
+          error['message'] ??
+              (isHindi
+                  ? 'ऑर्डर पूर्ण करने में विफल'
+                  : 'Failed to complete order'),
           false,
         );
       }
     } catch (e) {
       setState(() => updateIsLoadingForId(bookingId, false));
-      _showSnackBar(context, "Error: $e", false);
+      _showSnackBar(context, isHindi ? 'त्रुटि: $e' : "Error: $e", false);
     }
   }
 
@@ -423,9 +546,6 @@ class _OrdersPageState extends State<OrdersPage> {
     required BuildContext context,
     required String bookingId,
   }) async {
-    // Check if already rated
-    // This will be handled in the UI
-
     final rating = _selectedRating;
     if (rating < 1 || rating > 5) {
       _showSnackBar(context, 'Please select a rating between 1 and 5', false);
@@ -489,15 +609,18 @@ class _OrdersPageState extends State<OrdersPage> {
     final int existingRating = order['rating'] ?? 0;
     final String existingReview = order['review'] ?? '';
 
-    // If already rated, show info
     if (existingRating > 0) {
       _showAlreadyRatedDialog(context, existingRating, existingReview);
       return;
     }
 
     _selectedRating = 0;
-    ratingController.clear();
+    _hoveredRating = 0;
     reviewController.clear();
+
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
 
     showDialog(
       context: context,
@@ -505,218 +628,287 @@ class _OrdersPageState extends State<OrdersPage> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: Column(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.purple.shade400,
-                          Colors.deepPurple.shade700,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.vertical(
-                        top: Radius.circular(8),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Share Your Experience',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white70,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        Text(
-                          'How was your booking? ✨',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        Text(
-                          'Your feedback helps others make better decisions',
-                          style: TextStyle(fontSize: 12, color: Colors.white70),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
               ),
-              content: SingleChildScrollView(
+              backgroundColor: colorScheme.surface,
+              child: Container(
+                padding: EdgeInsets.all(0),
+                constraints: BoxConstraints(maxWidth: 400),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Star Rating
+                    // Header
                     Container(
-                      padding: EdgeInsets.symmetric(vertical: 16),
+                      padding: EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [primaryColor, primaryColor.withOpacity(0.7)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(24),
+                        ),
+                      ),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(5, (index) {
-                              final starValue = index + 1;
-                              return GestureDetector(
-                                onTap: () {
-                                  setStateDialog(() {
-                                    _selectedRating = starValue;
-                                  });
-                                },
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 4),
-                                  child: Icon(
-                                    starValue <= _selectedRating
-                                        ? Icons.star
-                                        : Icons.star_border,
-                                    color: Colors.amber,
-                                    size: 40,
-                                  ),
+                            children: [
+                              Icon(
+                                Icons.star_rate_rounded,
+                                color: Colors.yellow[400],
+                                size: 28,
+                              ),
+                              SizedBox(width: 12),
+                              Text(
+                                isHindiNotifier.value
+                                    ? 'अपना अनुभव साझा करें'
+                                    : 'Share Your Experience',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.white70,
                                 ),
-                              );
-                            }),
+                              ),
+                            ],
                           ),
-                          SizedBox(height: 8),
+                          SizedBox(height: 4),
                           Text(
-                            _getRatingLabel(_selectedRating),
+                            isHindiNotifier.value
+                                ? 'आपकी बुकिंग कैसी थी?'
+                                : 'How was your booking?',
                             style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: _getRatingColor(_selectedRating),
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
                           ),
+                          SizedBox(height: 2),
                           Text(
-                            _getRatingSubtext(_selectedRating),
+                            isHindiNotifier.value
+                                ? 'आपकी प्रतिक्रिया दूसरों को बेहतर निर्णय लेने में मदद करती है'
+                                : 'Your feedback helps others make better decisions',
                             style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
+                              fontSize: 13,
+                              color: Colors.white.withOpacity(0.8),
                             ),
                           ),
                         ],
                       ),
                     ),
 
-                    // Review TextField
-                    TextFormField(
-                      controller: reviewController,
-                      maxLines: 3,
-                      maxLength: 500,
-                      decoration: InputDecoration(
-                        labelText: '📝 Write a Review',
-                        hintText:
-                            'What stood out to you? Share the highlights...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor:
-                            isDarkTheme ? Colors.grey[800] : Colors.grey[50],
-                        counterText: '${reviewController.text.length}/500',
-                      ),
-                    ),
-                    SizedBox(height: 12),
-                    // Suggestion chips
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _buildSuggestionChip('👍 Great service!', () {
-                          final current = reviewController.text;
-                          final newText =
-                              current +
-                              (current.isNotEmpty ? ' ' : '') +
-                              'Great service! 👍';
-                          reviewController.text = newText;
-                        }),
-                        _buildSuggestionChip(
-                          '😊 Professional and friendly',
-                          () {
-                            final current = reviewController.text;
-                            final newText =
-                                current +
-                                (current.isNotEmpty ? ' ' : '') +
-                                'Professional and friendly 😊';
-                            reviewController.text = newText;
-                          },
-                        ),
-                        _buildSuggestionChip('⭐ Highly recommended!', () {
-                          final current = reviewController.text;
-                          final newText =
-                              current +
-                              (current.isNotEmpty ? ' ' : '') +
-                              'Highly recommended! ⭐';
-                          reviewController.text = newText;
-                        }),
-                        _buildSuggestionChip('🔄 Will book again', () {
-                          final current = reviewController.text;
-                          final newText =
-                              current +
-                              (current.isNotEmpty ? ' ' : '') +
-                              'Will book again 🔄';
-                          reviewController.text = newText;
-                        }),
-                      ],
-                    ),
-                    SizedBox(height: 8),
-                    Container(
-                      padding: EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color:
-                            isDarkTheme ? Colors.grey[800] : Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '💡 Your review helps the community. Be honest and constructive!',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color:
-                              isDarkTheme ? Colors.white70 : Colors.grey[600],
-                        ),
+                    Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Star Rating
+                          Container(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Column(
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: List.generate(5, (index) {
+                                    final starValue = index + 1;
+                                    final isFilled =
+                                        starValue <=
+                                        (_hoveredRating > 0
+                                            ? _hoveredRating
+                                            : _selectedRating);
+                                    return GestureDetector(
+                                      onTap:
+                                          () => setStateDialog(
+                                            () => _selectedRating = starValue,
+                                          ),
+
+                                      child: AnimatedContainer(
+                                        duration: Duration(milliseconds: 150),
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                        ),
+                                        child: Icon(
+                                          isFilled
+                                              ? Icons.star_rounded
+                                              : Icons.star_outline_rounded,
+                                          color:
+                                              isFilled
+                                                  ? Colors.amber
+                                                  : Colors.grey[400],
+                                          size: 44,
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                ),
+                                SizedBox(height: 8),
+                                AnimatedSwitcher(
+                                  duration: Duration(milliseconds: 200),
+                                  child: Text(
+                                    _selectedRating > 0
+                                        ? _getRatingLabel(_selectedRating)
+                                        : (isHindiNotifier.value
+                                            ? 'रेटिंग देने के लिए स्टार पर टैप करें'
+                                            : 'Tap a star to rate'),
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color:
+                                          _selectedRating > 0
+                                              ? _getRatingColor(_selectedRating)
+                                              : Colors.grey[500],
+                                    ),
+                                    key: ValueKey(_selectedRating),
+                                  ),
+                                ),
+                                Text(
+                                  _selectedRating > 0
+                                      ? _getRatingSubtext(_selectedRating)
+                                      : (isHindiNotifier.value
+                                          ? '1 से 5 स्टार में से चुनें'
+                                          : 'Choose from 1 to 5 stars'),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Review TextField
+                          TextFormField(
+                            controller: reviewController,
+                            maxLines: 3,
+                            maxLength: 500,
+                            decoration: InputDecoration(
+                              labelText:
+                                  isHindiNotifier.value
+                                      ? '📝 समीक्षा लिखें'
+                                      : '📝 Write a Review',
+                              hintText:
+                                  isHindiNotifier.value
+                                      ? 'आपको क्या पसंद आया? मुख्य बातें साझा करें...'
+                                      : 'What stood out to you? Share the highlights...',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              filled: true,
+                              fillColor:
+                                  isDarkTheme
+                                      ? Colors.grey[800]
+                                      : Colors.grey[50],
+                              prefixIcon: Icon(
+                                Icons.edit_note,
+                                color: Colors.grey[500],
+                              ),
+                              counterText: '',
+                            ),
+                          ),
+                          SizedBox(height: 12),
+
+                          // Suggestion chips
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _buildSuggestionChip(
+                                isHindiNotifier.value
+                                    ? '👍 बढ़िया सेवा!'
+                                    : '👍 Great service!',
+                              ),
+                              _buildSuggestionChip(
+                                isHindiNotifier.value
+                                    ? '😊 पेशेवर और मिलनसार'
+                                    : '😊 Professional and friendly',
+                              ),
+                              _buildSuggestionChip(
+                                isHindiNotifier.value
+                                    ? '⭐ अत्यधिक अनुशंसित!'
+                                    : '⭐ Highly recommended!',
+                              ),
+                              _buildSuggestionChip(
+                                isHindiNotifier.value
+                                    ? '🔄 फिर से बुक करूंगा'
+                                    : '🔄 Will book again',
+                              ),
+                            ],
+                          ),
+
+                          SizedBox(height: 16),
+
+                          // Action buttons
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextButton(
+                                  onPressed: () {
+                                    _selectedRating = 0;
+                                    reviewController.clear();
+                                    Navigator.pop(dialogContext);
+                                  },
+                                  child: Text(
+                                    isHindiNotifier.value
+                                        ? 'रद्द करें'
+                                        : 'Cancel',
+                                    style: TextStyle(
+                                      color: Colors.red[400],
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    if (_selectedRating < 1 ||
+                                        _selectedRating > 5) {
+                                      _showSnackBar(
+                                        context,
+                                        isHindiNotifier.value
+                                            ? 'कृपया रेटिंग चुनें'
+                                            : 'Please select a rating',
+                                        false,
+                                      );
+                                      return;
+                                    }
+                                    Navigator.pop(dialogContext);
+                                    _handleRatingOrder(
+                                      context: context,
+                                      bookingId: bookingId,
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: primaryColor,
+                                    foregroundColor: colorScheme.onPrimary,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    padding: EdgeInsets.symmetric(vertical: 14),
+                                    elevation: 0,
+                                  ),
+                                  child: Text(
+                                    isHindiNotifier.value
+                                        ? 'समीक्षा सबमिट करें'
+                                        : 'Submit Review',
+                                    style: TextStyle(
+                                      color: colorScheme.onPrimary,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    _selectedRating = 0;
-                    ratingController.clear();
-                    reviewController.clear();
-                    Navigator.pop(dialogContext);
-                  },
-                  child: Text('Cancel', style: TextStyle(color: Colors.red)),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    if (_selectedRating < 1 || _selectedRating > 5) {
-                      _showSnackBar(
-                        context,
-                        'Please select a rating between 1 and 5',
-                        false,
-                      );
-                      return;
-                    }
-                    Navigator.pop(dialogContext);
-                    _handleRatingOrder(context: context, bookingId: bookingId);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple,
-                  ),
-                  child: Text(
-                    '🌟 Submit Review',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
             );
           },
         );
@@ -724,24 +916,46 @@ class _OrdersPageState extends State<OrdersPage> {
     );
   }
 
-  Widget _buildSuggestionChip(String label, VoidCallback onTap) {
+  Widget _buildSuggestionChip(String label) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        final current = reviewController.text;
+        final cleanLabel = label.replaceAll(RegExp(r'[😊⭐👍🔄]'), '').trim();
+        final newText = current + (current.isNotEmpty ? ' ' : '') + cleanLabel;
+        reviewController.text = newText;
+      },
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
           color: Colors.grey[200],
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey[300]!),
         ),
         child: Text(
           label,
-          style: TextStyle(fontSize: 11, color: Colors.grey[700]),
+          style: TextStyle(fontSize: 12, color: Colors.grey[700]),
         ),
       ),
     );
   }
 
   String _getRatingLabel(int rating) {
+    if (isHindiNotifier.value) {
+      switch (rating) {
+        case 1:
+          return '😔 सुधार की जरूरत';
+        case 2:
+          return '😕 बेहतर हो सकता था';
+        case 3:
+          return '😐 ठीक था';
+        case 4:
+          return '😊 अच्छा अनुभव';
+        case 5:
+          return '🌟 उत्कृष्ट!';
+        default:
+          return 'रेटिंग देने के लिए स्टार पर टैप करें';
+      }
+    }
     switch (rating) {
       case 1:
         return '😔 Needs Improvement';
@@ -759,6 +973,22 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 
   String _getRatingSubtext(int rating) {
+    if (isHindiNotifier.value) {
+      switch (rating) {
+        case 1:
+          return "अगली बार बेहतर करेंगे";
+        case 2:
+          return "आपकी ईमानदारी के लिए धन्यवाद";
+        case 3:
+          return "सुधार की गुंजाइश है";
+        case 4:
+          return "खुशी है कि आपको पसंद आया!";
+        case 5:
+          return "बिल्कुल अद्भुत अनुभव!";
+        default:
+          return '1 से 5 स्टार में से चुनें';
+      }
+    }
     switch (rating) {
       case 1:
         return "We'll do better next time";
@@ -787,18 +1017,30 @@ class _OrdersPageState extends State<OrdersPage> {
     int rating,
     String review,
   ) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
+
     showDialog(
       context: context,
       builder:
           (dialogContext) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            backgroundColor: colorScheme.surface,
             title: Column(
               children: [
+                Icon(Icons.star_rounded, color: Colors.amber, size: 48),
+                SizedBox(height: 8),
                 Text(
-                  '🌟 Already Rated!',
+                  isHindiNotifier.value
+                      ? '🌟 पहले ही रेट किया जा चुका है!'
+                      : '🌟 Already Rated!',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Colors.purple,
+                    color: colorScheme.onSurface,
                   ),
                 ),
               ],
@@ -810,7 +1052,9 @@ class _OrdersPageState extends State<OrdersPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(5, (index) {
                     return Icon(
-                      index < rating ? Icons.star : Icons.star_border,
+                      index < rating
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
                       color: Colors.amber,
                       size: 32,
                     );
@@ -818,30 +1062,38 @@ class _OrdersPageState extends State<OrdersPage> {
                 ),
                 SizedBox(height: 8),
                 Text(
-                  'You rated this vendor $rating/5',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  isHindiNotifier.value
+                      ? 'आपने इस विक्रेता को $rating/5 रेट किया'
+                      : 'You rated this vendor $rating/5',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
                 ),
                 if (review.isNotEmpty) ...[
                   SizedBox(height: 8),
                   Container(
                     padding: EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey[100],
+                      color: colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       '"$review"',
                       style: TextStyle(
                         fontStyle: FontStyle.italic,
-                        color: Colors.grey[700],
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
                 ],
                 SizedBox(height: 8),
                 Text(
-                  'Thank you for your feedback! 🙏',
-                  style: TextStyle(color: Colors.grey[600]),
+                  isHindiNotifier.value
+                      ? 'आपकी प्रतिक्रिया के लिए धन्यवाद! 🙏'
+                      : 'Thank you for your feedback! 🙏',
+                  style: TextStyle(color: colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -849,8 +1101,11 @@ class _OrdersPageState extends State<OrdersPage> {
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
                 child: Text(
-                  '👍 Got it',
-                  style: TextStyle(color: Colors.purple),
+                  isHindiNotifier.value ? 'ठीक है' : 'Got it',
+                  style: TextStyle(
+                    color: primaryColor,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -860,7 +1115,14 @@ class _OrdersPageState extends State<OrdersPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
+    final surface = colorScheme.surface;
+    final onSurface = colorScheme.onSurface;
+    // final isDark = Theme.of(context).brightness == Brightness.dark;
     final mediaQuery = MediaQuery.of(context);
+    final isSmallScreen = mediaQuery.size.width < 400;
 
     return ValueListenableBuilder<bool>(
       valueListenable: isDarkThemeNotifier,
@@ -869,14 +1131,40 @@ class _OrdersPageState extends State<OrdersPage> {
           valueListenable: isVendor,
           builder: (context, isVendor, _) {
             return Padding(
-              padding: EdgeInsets.all(mediaQuery.size.width * 0.02),
+              padding: EdgeInsets.all(mediaQuery.size.width * 0.025),
               child: Column(
                 children: [
-                  _buildTabBar(isDarkTheme, mediaQuery),
-                  SizedBox(height: mediaQuery.size.height * 0.01),
-                  Expanded(child: _buildOrderList(isDarkTheme, mediaQuery)),
-                  SizedBox(height: mediaQuery.size.height * 0.01),
-                  _buildPaginationControls(isDarkTheme, mediaQuery),
+                  // Wrap TabBar with ValueListenableBuilder to react to language changes
+                  ValueListenableBuilder<bool>(
+                    valueListenable: isHindiNotifier,
+                    builder: (context, isHindi, _) {
+                      return _buildModernTabBar(
+                        isDarkTheme,
+                        mediaQuery,
+                        isSmallScreen,
+                        primaryColor,
+                        colorScheme,
+                      );
+                    },
+                  ),
+                  SizedBox(height: mediaQuery.size.height * 0.015),
+                  Expanded(
+                    child: _buildOrderList(
+                      isDarkTheme,
+                      mediaQuery,
+                      isSmallScreen,
+                      primaryColor,
+                      surface,
+                      onSurface,
+                    ),
+                  ),
+                  _buildModernPagination(
+                    isDarkTheme,
+                    mediaQuery,
+                    isSmallScreen,
+                    primaryColor,
+                    colorScheme,
+                  ),
                 ],
               ),
             );
@@ -886,41 +1174,261 @@ class _OrdersPageState extends State<OrdersPage> {
     );
   }
 
-  Widget _buildPaginationControls(bool isDarkTheme, MediaQueryData mediaQuery) {
-    final canGoBack = pageNo > 1;
-    final canGoForward = totalOrders > 12 && pageNo < totalOrders / 12;
-    final totalPage = (totalOrders / 12).ceil();
-    final totalPages = totalPage == 0 ? 1 : totalPage;
+  Widget _buildModernTabBar(
+    bool isDarkTheme,
+    MediaQueryData mediaQuery,
+    bool isSmallScreen,
+    Color primaryColor,
+    ColorScheme colorScheme,
+  ) {
+    final isHindi = isHindiNotifier.value;
+    final tabs = [
+      {
+        'label': isHindi ? 'लंबित' : 'Pending',
+        'count': pendingCount,
+        'color': primaryColor,
+      },
+      {
+        'label': isHindi ? 'पूर्ण' : 'Completed',
+        'count': completedCount,
+        'color': Colors.green,
+      },
+      {
+        'label': isHindi ? 'रद्द' : 'Canceled',
+        'count': canceledCount,
+        'color': colorScheme.error,
+      },
+    ];
+
     return Container(
-      height: mediaQuery.size.height * 0.06,
-      padding: EdgeInsets.symmetric(horizontal: mediaQuery.size.width * 0.02),
       decoration: BoxDecoration(
-        color: isDarkTheme ? Colors.black : Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        color: isDarkTheme ? const Color(0xFF1A1A2E) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color:
+              isDarkTheme
+                  ? Colors.white.withOpacity(0.06)
+                  : const Color(0xFFE5E7EB),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDarkTheme ? 0.2 : 0.04),
+            blurRadius: 20,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(4),
+        child: Row(
+          children: List.generate(tabs.length, (index) {
+            final tab = tabs[index];
+            final isSelected = orderDetails == index + 1;
+            final Color tabColor = tab['color'] as Color;
+            final int count = tab['count'] as int;
+
+            return Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    orderDetails = index + 1;
+                    _tabController.animateTo(index);
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: Duration(milliseconds: 250),
+                  height: mediaQuery.size.height * 0.055,
+                  decoration: BoxDecoration(
+                    color: isSelected ? tabColor : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected ? tabColor : Colors.transparent,
+                    ),
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            tab['label'] as String,
+                            style: TextStyle(
+                              color:
+                                  isSelected
+                                      ? colorScheme.onPrimary
+                                      : (isDarkTheme
+                                          ? Colors.white70
+                                          : Colors.grey[600]),
+                              fontWeight:
+                                  isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
+                              fontSize: isSmallScreen ? 11 : 13,
+                            ),
+                          ),
+                          if (count > 0) ...[
+                            SizedBox(width: 6),
+                            AnimatedContainer(
+                              duration: Duration(milliseconds: 250),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    isSelected
+                                        ? Colors.white.withOpacity(0.3)
+                                        : tabColor,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '$count',
+                                style: TextStyle(
+                                  color:
+                                      isSelected ? Colors.white : Colors.white,
+                                  fontSize: isSmallScreen ? 9 : 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (isSelected)
+                        Positioned(
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          child: Container(
+                            height: 3,
+                            color: Colors.white.withOpacity(0.5),
+                            margin: EdgeInsets.symmetric(horizontal: 20),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernPagination(
+    bool isDarkTheme,
+    MediaQueryData mediaQuery,
+    bool isSmallScreen,
+    Color primaryColor,
+    ColorScheme colorScheme,
+  ) {
+    final canGoBack = pageNo > 1;
+    final totalPages = (totalOrders / 12).ceil();
+    final totalPagesCount = totalPages == 0 ? 1 : totalPages;
+    final canGoForward = totalOrders > 12 && pageNo < totalPagesCount;
+
+    return Container(
+      height: mediaQuery.size.height * 0.065,
+      padding: EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: isDarkTheme ? const Color(0xFF1A1A2E) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color:
+              isDarkTheme
+                  ? Colors.white.withOpacity(0.06)
+                  : const Color(0xFFE5E7EB),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDarkTheme ? 0.2 : 0.04),
+            blurRadius: 20,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new),
-            color: isDarkTheme ? Colors.white : Colors.black,
-            onPressed: canGoBack ? _goToPreviousPage : null,
+          _buildPaginationButton(
+            icon: Icons.chevron_left_rounded,
+            onTap: canGoBack ? _goToPreviousPage : null,
+            isDarkTheme: isDarkTheme,
+            primaryColor: primaryColor,
           ),
-          Text(
-            '$pageNo/$totalPages',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: mediaQuery.size.width * 0.045,
-              color: isDarkTheme ? Colors.white : Colors.black,
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            decoration: BoxDecoration(
+              color: (isDarkTheme ? Colors.white : Colors.black).withOpacity(
+                0.08,
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$pageNo',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: isSmallScreen ? 14 : 16,
+                    color: isDarkTheme ? Colors.white : Colors.black,
+                  ),
+                ),
+                Text(
+                  ' / $totalPagesCount',
+                  style: TextStyle(
+                    fontSize: isSmallScreen ? 12 : 14,
+                    color: isDarkTheme ? Colors.white60 : Colors.grey[600],
+                  ),
+                ),
+              ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.arrow_forward_ios),
-            color: isDarkTheme ? Colors.white : Colors.black,
-            onPressed:
-                canGoForward ? _goToNextPage : () => _showEndDialog(context),
+          _buildPaginationButton(
+            icon: Icons.chevron_right_rounded,
+            onTap: canGoForward ? _goToNextPage : null,
+            isDarkTheme: isDarkTheme,
+            primaryColor: primaryColor,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPaginationButton({
+    required IconData icon,
+    VoidCallback? onTap,
+    required bool isDarkTheme,
+    required Color primaryColor,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          padding: EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color:
+                onTap != null
+                    ? (isDarkTheme
+                        ? Colors.white.withOpacity(0.1)
+                        : Colors.black.withOpacity(0.05))
+                    : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            icon,
+            color:
+                onTap != null
+                    ? (isDarkTheme ? Colors.white : Colors.black)
+                    : (isDarkTheme ? Colors.white30 : Colors.grey[400]),
+            size: 24,
+          ),
+        ),
       ),
     );
   }
@@ -947,352 +1455,473 @@ class _OrdersPageState extends State<OrdersPage> {
     });
   }
 
-  void _showEndDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder:
-          (_) => AlertDialog(
-            title: const Text("No more pages"),
-            content: const Text("You have reached the end."),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("OK"),
-              ),
-            ],
-          ),
-    );
-  }
-
-  Widget _buildTabBar(bool isDarkTheme, MediaQueryData mediaQuery) {
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: mediaQuery.size.height * 0.01),
-      decoration: BoxDecoration(
-        color: isDarkTheme ? Colors.black : Colors.white,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildTabWithBadge(
-            'Pending',
-            1,
-            Colors.blue,
-            pendingCount,
-            isDarkTheme,
-            mediaQuery,
-          ),
-          _buildTabWithBadge(
-            'Completed',
-            2,
-            Colors.green,
-            completedCount,
-            isDarkTheme,
-            mediaQuery,
-          ),
-          _buildTabWithBadge(
-            'Canceled',
-            3,
-            Colors.red,
-            canceledCount,
-            isDarkTheme,
-            mediaQuery,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabWithBadge(
-    String text,
-    int value,
-    Color color,
-    int count,
+  Widget _buildOrderList(
     bool isDarkTheme,
     MediaQueryData mediaQuery,
+    bool isSmallScreen,
+    Color primaryColor,
+    Color surface,
+    Color onSurface,
   ) {
-    return count == 0
-        ? _buildOrderTab(text, value, color, isDarkTheme, mediaQuery)
-        : Stack(
-          clipBehavior: Clip.none,
-          children: [
-            _buildOrderTab(text, value, color, isDarkTheme, mediaQuery),
-            Positioned(
-              top: -4,
-              right: -4,
-              child: Container(
-                padding: EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.pink,
-                  shape: BoxShape.circle,
-                ),
-                constraints: BoxConstraints(minWidth: 20, minHeight: 20),
-                child: Text(
-                  count.toString(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 10,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-          ],
-        );
-  }
-
-  Widget _buildOrderList(bool isDarkTheme, MediaQueryData mediaQuery) {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: futureCards,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(
-            child: CircularProgressIndicator(
-              color: isDarkTheme ? Colors.white : Colors.black,
-            ),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              "Error: ${snapshot.error}",
-              style: TextStyle(
-                color: isDarkTheme ? Colors.white : Colors.black,
-                fontSize: mediaQuery.size.width * 0.04,
-              ),
-            ),
-          );
-        }
-
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return Center(
-            child: Text(
-              "No orders available",
-              style: TextStyle(
-                color: isDarkTheme ? Colors.white : Colors.black,
-                fontSize: mediaQuery.size.width * 0.04,
-              ),
-            ),
-          );
-        }
-
-        final ordersList =
-            (snapshot.data!["orders"] ?? []).where((order) {
-              if (orderDetails == 1) {
-                return !order['cancelOrder'] && !order['orderCompleted'];
-              }
-              if (orderDetails == 2) return order['orderCompleted'] == true;
-              if (orderDetails == 3) return order['cancelOrder'] == true;
-              return true;
-            }).toList();
-
-        if (ordersList.isEmpty) {
-          return Center(
-            child: Column(
-              children: [
-                SizedBox(height: 18),
-                Center(child: BannerAdWidget()),
-                SizedBox(height: 18),
-                Text(
-                  _getEmptyStateMessage(),
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: mediaQuery.size.width * 0.04,
-                    color: isDarkTheme ? Colors.white : Colors.black,
+    return ValueListenableBuilder<bool>(
+      valueListenable: isHindiNotifier,
+      builder: (context, isHindi, _) {
+        return FutureBuilder<Map<String, dynamic>>(
+          future: futureCards,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  child: CircularProgressIndicator(
+                    color: primaryColor,
+                    strokeWidth: 3,
                   ),
                 ),
-              ],
-            ),
-          );
-        }
+              );
+            }
 
-        return ListView.builder(
-          padding: EdgeInsets.symmetric(
-            horizontal: mediaQuery.size.width * 0.02,
-          ),
-          itemCount: ordersList.length,
-          itemBuilder:
-              (context, index) => Column(
-                children: [
-                  index % 3 == 0
-                      ? Center(child: BannerAdWidget())
-                      : const SizedBox.shrink(),
-                  index % 3 == 0
-                      ? SizedBox(height: 8)
-                      : const SizedBox.shrink(),
-                  _buildOrderCard(
-                    context,
-                    ordersList[index],
-                    isDarkTheme,
-                    mediaQuery,
-                    index,
-                  ),
-                ],
-              ),
+            if (snapshot.hasError) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline_rounded,
+                      size: 48,
+                      color: Colors.red[400],
+                    ),
+                    SizedBox(height: 12),
+                    Text(
+                      isHindi
+                          ? 'ऑर्डर लोड करने में विफल'
+                          : 'Failed to load orders',
+                      style: TextStyle(
+                        color: isDarkTheme ? Colors.white : Colors.black,
+                        fontSize: mediaQuery.size.width * 0.045,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      "${snapshot.error}",
+                      style: TextStyle(
+                        color: isDarkTheme ? Colors.white60 : Colors.grey[600],
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.inbox_outlined,
+                      size: 64,
+                      color: isDarkTheme ? Colors.white30 : Colors.grey[400],
+                    ),
+                    SizedBox(height: 12),
+                    Text(
+                      isHindi ? 'कोई ऑर्डर उपलब्ध नहीं' : 'No orders available',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: mediaQuery.size.width * 0.045,
+                        color: isDarkTheme ? Colors.white : Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            // Get ALL orders without filtering by status
+            final allOrders = snapshot.data!["orders"] ?? [];
+
+            // Now filter by status for display
+            final ordersList =
+                allOrders.where((order) {
+                  if (orderDetails == 1) {
+                    return !order['cancelOrder'] && !order['orderCompleted'];
+                  }
+                  if (orderDetails == 2) return order['orderCompleted'] == true;
+                  if (orderDetails == 3) return order['cancelOrder'] == true;
+                  return true;
+                }).toList();
+
+            if (ordersList.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.inbox_outlined,
+                      size: 64,
+                      color: isDarkTheme ? Colors.white30 : Colors.grey[400],
+                    ),
+                    SizedBox(height: 12),
+                    Text(
+                      _getEmptyStateMessage(),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: mediaQuery.size.width * 0.045,
+                        color: isDarkTheme ? Colors.white : Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            // Simple approach: show an ad after every 2 orders
+            final List<Widget> items = [];
+
+            for (int i = 0; i < ordersList.length; i++) {
+              // Add the order
+              items.add(
+                _buildModernOrderCard(
+                  context,
+                  ordersList[i],
+                  isDarkTheme,
+                  mediaQuery,
+                  isSmallScreen,
+                  i,
+                  primaryColor,
+                  surface,
+                  onSurface,
+                ),
+              );
+            }
+
+            return ListView(
+              padding: EdgeInsets.symmetric(horizontal: 2),
+              children: items,
+            );
+          },
         );
       },
     );
   }
 
   String _getEmptyStateMessage() {
+    final isHindi = isHindiNotifier.value;
     switch (orderDetails) {
       case 1:
-        return "No pending orders available";
+        return isHindi ? "कोई लंबित ऑर्डर नहीं" : "No pending orders";
       case 2:
-        return "No completed orders available";
+        return isHindi ? "कोई पूर्ण ऑर्डर नहीं" : "No completed orders";
       case 3:
-        return "No canceled orders available";
+        return isHindi ? "कोई रद्द ऑर्डर नहीं" : "No canceled orders";
       default:
-        return "No orders available";
+        return isHindi ? "कोई ऑर्डर उपलब्ध नहीं" : "No orders available";
     }
   }
 
-  Widget _buildOrderCard(
+  Widget _buildModernOrderCard(
     BuildContext context,
     dynamic order,
     bool isDarkTheme,
     MediaQueryData mediaQuery,
+    bool isSmallScreen,
     int index,
+    Color primaryColor,
+    Color surface,
+    Color onSurface,
   ) {
-    final isSmallScreen = mediaQuery.size.width < 350;
+    final isHindi = isHindiNotifier.value;
     final String bookingId = _getBookingId(order);
     final bool isCancelLoading = isLoadingC[bookingId] ?? false;
     final bool isCompleteLoading = isLoading[bookingId] ?? false;
-    final int rating =
-        order['rating'] is num ? (order['rating'] as num).toInt() : 0;
 
-    final String review = order['review']?.toString() ?? '';
+    // Fix: Check if userId and vendorId exist and are equal
+    final String? orderUserId = order['userId']?.toString();
+    final String? orderVendorId = order['vendorId']?.toString();
 
-    final String userId = order['userId']?.toString() ?? '';
-    final String vendorId = order['vendorId']?.toString() ?? '';
-
+    // Check if this is a self-booked order
     final bool isSelfBooked =
-        userId.isNotEmpty && vendorId.isNotEmpty && userId == vendorId;
+        orderUserId != null &&
+        orderVendorId != null &&
+        orderUserId.isNotEmpty &&
+        orderVendorId.isNotEmpty &&
+        orderUserId == orderVendorId;
 
-    Color borderColor;
+    Color statusColor;
+    String statusIcon;
+    String statusLabel;
+
     if (order['cancelOrder'] == true) {
-      borderColor = Colors.red;
+      statusColor = const Color(0xFFEF4444);
+      statusIcon = '✕';
+      statusLabel = isHindi ? 'रद्द' : 'Canceled';
     } else if (order['orderCompleted'] == true) {
-      borderColor = Colors.green;
+      statusColor = const Color(0xFF22C55E);
+      statusIcon = '✓';
+      statusLabel = isHindi ? 'पूर्ण' : 'Completed';
     } else {
-      borderColor = Colors.blue;
+      statusColor = primaryColor;
+      statusIcon = '⏳';
+      statusLabel = isHindi ? 'लंबित' : 'Pending';
     }
 
-    return Container(
+    // Parse and convert date to Asia/Kolkata timezone
+    String formattedDate = 'Date not available';
+    if (order['date'] != null) {
+      final dateStr = order['date'].toString();
+      final parsedDate = _parseAndConvertToAsiaKolkata(dateStr);
+      formattedDate = _formatDate(parsedDate);
+    }
+
+    // Get order type with proper capitalization
+    String orderType = order['type']?.toString() ?? 'Service';
+    String orderName = order['name']?.toString() ?? 'Unknown';
+
+    return AnimatedContainer(
+      duration: Duration(milliseconds: 300),
       margin: EdgeInsets.only(bottom: mediaQuery.size.height * 0.015),
-      padding: EdgeInsets.all(mediaQuery.size.width * 0.03),
       decoration: BoxDecoration(
-        color: isDarkTheme ? Colors.black : Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: borderColor, width: 2),
+        color: isDarkTheme ? const Color(0xFF1A1A2E) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: statusColor.withOpacity(0.3), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 3,
+            color: statusColor.withOpacity(0.08),
+            blurRadius: 20,
+            offset: Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(isDarkTheme ? 0.2 : 0.04),
+            blurRadius: 12,
+            offset: Offset(0, 4),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildOrderInfoRow('Name', order['name'], isDarkTheme, isSmallScreen),
-          _buildOrderInfoRow(
-            'Mobile',
-            order['phoneNo'].toString(),
-            isDarkTheme,
-            isSmallScreen,
-          ),
-          _buildOrderInfoRow(
-            'Profession',
-            order['type'],
-            isDarkTheme,
-            isSmallScreen,
-          ),
-          _buildOrderInfoRow(
-            'Date',
-            DateTime.parse(order['date']).toLocal().toString().split(' ')[0],
-            isDarkTheme,
-            isSmallScreen,
-          ),
-          if (isSelfBooked)
-            _buildOrderInfoRow(
-              'Self Booked',
-              'Yes',
-              isDarkTheme,
-              isSmallScreen,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            // Status Bar
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              color: statusColor.withOpacity(0.08),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Text(statusIcon, style: TextStyle(fontSize: 14)),
+                      SizedBox(width: 6),
+                      Text(
+                        statusLabel,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: isSmallScreen ? 11 : 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '#${bookingId.substring(0, bookingId.length > 8 ? 8 : bookingId.length)}',
+                    style: TextStyle(
+                      color: isDarkTheme ? Colors.white60 : Colors.grey[500],
+                      fontSize: isSmallScreen ? 10 : 12,
+                    ),
+                  ),
+                ],
+              ),
             ),
 
-          // Pending Order Actions
-          if (orderDetails == 1) ...[
-            SizedBox(height: mediaQuery.size.height * 0.01),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildActionButton(
-                    context,
-                    'Cancel Order',
-                    Colors.red,
-                    () => _handleCancelOrder(
-                      context: context,
-                      bookingId: bookingId,
-                    ),
-                    isLoading: isCancelLoading,
+            // Content
+            Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [statusColor, statusColor.withOpacity(0.6)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: Text(
+                            orderName.substring(0, 1).toUpperCase(),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _capitalizeWords(orderName),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: isSmallScreen ? 14 : 16,
+                                color: isDarkTheme ? Colors.white : onSurface,
+                              ),
+                            ),
+                            Text(
+                              _capitalizeWords(orderType),
+                              style: TextStyle(
+                                color:
+                                    isDarkTheme
+                                        ? Colors.white60
+                                        : Colors.grey[600],
+                                fontSize: isSmallScreen ? 11 : 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                SizedBox(width: mediaQuery.size.width * 0.02),
-                Expanded(
-                  child: _buildActionButton(
-                    context,
-                    'Mark Completed',
-                    Colors.green,
-                    () => _handleMarkAsCompletedOrder(
-                      context: context,
-                      bookingId: bookingId,
+
+                  SizedBox(height: 12),
+
+                  // Details Grid
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color:
+                          isDarkTheme
+                              ? Colors.white.withOpacity(0.05)
+                              : Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    isLoading: isCompleteLoading,
+                    child: Column(
+                      children: [
+                        _buildModernDetailRow(
+                          '📞',
+                          order['phoneNo']?.toString() ?? 'N/A',
+                          isDarkTheme,
+                          isSmallScreen,
+                        ),
+                        _buildModernDivider(isDarkTheme),
+                        _buildModernDetailRow(
+                          '📅',
+                          formattedDate,
+                          isDarkTheme,
+                          isSmallScreen,
+                          isColored: true,
+                        ),
+                        if (isSelfBooked) ...[
+                          _buildModernDivider(isDarkTheme),
+                          _buildModernDetailRow(
+                            '👤',
+                            isHindi ? 'स्वयं बुक' : 'Self Booked',
+                            isDarkTheme,
+                            isSmallScreen,
+                            isColored: true,
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+
+                  // Actions - Using Theme Colors
+                  if (orderDetails == 1) ...[
+                    SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildModernActionButton(
+                            context,
+                            isHindi ? 'रद्द करें' : 'Cancel',
+                            Colors.red,
+                            () => _handleCancelOrder(
+                              context: context,
+                              bookingId: bookingId,
+                            ),
+                            isLoading: isCancelLoading,
+                            icon: Icons.close_rounded,
+                            isDarkTheme: isDarkTheme,
+                            primaryColor: primaryColor,
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: _buildModernActionButton(
+                            context,
+                            isHindi ? 'पूर्ण करें' : 'Complete',
+                            primaryColor,
+                            () => _handleMarkAsCompletedOrder(
+                              context: context,
+                              bookingId: bookingId,
+                            ),
+                            isLoading: isCompleteLoading,
+                            icon: Icons.check_rounded,
+                            isDarkTheme: isDarkTheme,
+                            primaryColor: primaryColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
+                  if (orderDetails == 2) ...[
+                    SizedBox(height: 12),
+                    _buildModernRatingSection(
+                      context,
+                      order,
+                      isDarkTheme,
+                      mediaQuery,
+                      primaryColor,
+                    ),
+                  ],
+                ],
+              ),
             ),
           ],
-
-          // Completed Order Rating Section
-          if (orderDetails == 2) ...[
-            SizedBox(height: mediaQuery.size.height * 0.01),
-            _buildRatingSection(context, order, isDarkTheme, mediaQuery),
-          ],
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildOrderInfoRow(
-    String label,
+  Widget _buildModernDetailRow(
+    String icon,
     String value,
     bool isDarkTheme,
-    bool isSmallScreen,
-  ) {
+    bool isSmallScreen, {
+    bool isColored = false,
+  }) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 2.0 : 4.0),
+      padding: EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: isSmallScreen ? 12 : 14,
-              color: isDarkTheme ? Colors.white : Colors.black,
-            ),
-          ),
-          Text(
-            _capitalizeWords(value),
-            style: TextStyle(
-              fontSize: isSmallScreen ? 12 : 14,
-              color: _getStatusColor(orderDetails),
+          Text(icon, style: TextStyle(fontSize: isSmallScreen ? 12 : 14)),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _capitalizeWords(value),
+              style: TextStyle(
+                color:
+                    isColored
+                        ? const Color(0xFF4F46E5)
+                        : (isDarkTheme ? Colors.white : Colors.black),
+                fontWeight: isColored ? FontWeight.bold : FontWeight.w500,
+                fontSize: isSmallScreen ? 12 : 14,
+              ),
+              textAlign: TextAlign.right,
             ),
           ),
         ],
@@ -1300,33 +1929,33 @@ class _OrdersPageState extends State<OrdersPage> {
     );
   }
 
-  Color _getStatusColor(int status) {
-    switch (status) {
-      case 1:
-        return Colors.blue;
-      case 2:
-        return Colors.green;
-      case 3:
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
+  Widget _buildModernDivider(bool isDarkTheme) {
+    return Divider(
+      height: 8,
+      color: isDarkTheme ? Colors.white.withOpacity(0.06) : Colors.grey[200],
+    );
   }
 
-  Widget _buildActionButton(
+  Widget _buildModernActionButton(
     BuildContext context,
     String text,
     Color color,
     VoidCallback onPressed, {
     bool isLoading = false,
+    required IconData icon,
+    required bool isDarkTheme,
+    required Color primaryColor,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
-        padding: EdgeInsets.symmetric(
-          vertical: MediaQuery.of(context).size.height * 0.01,
-        ),
-        minimumSize: Size(double.infinity, 40),
+        foregroundColor: colorScheme.onPrimary,
+        padding: EdgeInsets.symmetric(vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 0,
       ),
       onPressed: isLoading ? null : onPressed,
       child:
@@ -1336,155 +1965,116 @@ class _OrdersPageState extends State<OrdersPage> {
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Colors.white,
+                  color: colorScheme.onPrimary,
                 ),
               )
-              : Text(
-                text,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: MediaQuery.of(context).size.width * 0.035,
-                ),
+              : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 16, color: colorScheme.onPrimary),
+                  SizedBox(width: 6),
+                  Text(
+                    text,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: colorScheme.onPrimary,
+                    ),
+                  ),
+                ],
               ),
     );
   }
 
-  Widget _buildRatingSection(
+  Widget _buildModernRatingSection(
     BuildContext context,
     dynamic order,
     bool isDarkTheme,
     MediaQueryData mediaQuery,
+    Color primaryColor,
   ) {
+    final isHindi = isHindiNotifier.value;
     final String bookingId = _getBookingId(order);
     final int rating = order['rating'] ?? 0;
     final String review = order['review'] ?? '';
     final bool isLoadingRating = isLoading[bookingId] ?? false;
 
-    // Already rated
     if (rating > 0) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'Rated',
-                style: TextStyle(
-                  color: Colors.deepOrange,
-                  fontWeight: FontWeight.bold,
-                  fontSize: mediaQuery.size.width * 0.04,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '$rating/5',
-                style: TextStyle(
-                  color: Colors.blue,
-                  fontWeight: FontWeight.bold,
-                  fontSize: mediaQuery.size.width * 0.04,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Row(
-                children: List.generate(5, (index) {
-                  return Icon(
-                    index < rating ? Icons.star : Icons.star_border,
-                    color: Colors.amber,
-                    size: mediaQuery.size.width * 0.04,
-                  );
-                }),
-              ),
-            ],
-          ),
-          if (review.isNotEmpty) ...[
-            const SizedBox(height: 6),
+      return Container(
+        padding: EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color:
+              isDarkTheme
+                  ? Colors.white.withOpacity(0.05)
+                  : const Color(0xFFF5F3FF),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: primaryColor.withOpacity(0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text('⭐', style: TextStyle(fontSize: 14)),
+                SizedBox(width: 8),
                 Text(
-                  'Reviewed',
+                  isHindi ? 'रेटिंग' : 'Rated',
                   style: TextStyle(
-                    color: Colors.deepOrange,
                     fontWeight: FontWeight.bold,
-                    fontSize: mediaQuery.size.width * 0.04,
+                    color: primaryColor,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    review,
-                    style: TextStyle(
-                      color: Colors.blue,
-                      fontWeight: FontWeight.bold,
-                      fontSize: mediaQuery.size.width * 0.04,
-                    ),
-                    softWrap: true,
+                SizedBox(width: 8),
+                Text(
+                  '$rating/5',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: primaryColor,
                   ),
+                ),
+                SizedBox(width: 8),
+                Row(
+                  children: List.generate(5, (index) {
+                    return Icon(
+                      index < rating
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                      color: Colors.amber,
+                      size: 16,
+                    );
+                  }),
                 ),
               ],
             ),
+            if (review.isNotEmpty) ...[
+              SizedBox(height: 4),
+              Text(
+                '📝 "$review"',
+                style: TextStyle(
+                  color: isDarkTheme ? Colors.white70 : Colors.grey[600],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       );
     }
 
-    // Show "Give Rating" button - opens enhanced rating dialog
-    return _buildActionButton(
+    return _buildModernActionButton(
       context,
-      'Give Rating & Review',
-      Colors.blue,
+      isHindi ? 'रेटिंग दें' : 'Give Rating',
+      primaryColor,
       () => _showRatingDialog(context, order, isDarkTheme),
       isLoading: isLoadingRating,
-    );
-  }
-
-  Widget _buildOrderTab(
-    String text,
-    int value,
-    Color color,
-    bool isDarkTheme,
-    MediaQueryData mediaQuery,
-  ) {
-    final isSelected = orderDetails == value;
-
-    return GestureDetector(
-      onTap: () => setState(() => orderDetails = value),
-      child: Container(
-        padding: EdgeInsets.all(mediaQuery.size.width * 0.01),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color:
-                isSelected
-                    ? (isDarkTheme ? Colors.white : Colors.black)
-                    : (isDarkTheme ? Colors.black : Colors.white),
-            width: 2,
-          ),
-        ),
-        child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: mediaQuery.size.width * 0.03,
-            vertical: mediaQuery.size.height * 0.01,
-          ),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Text(
-            text,
-            style: TextStyle(
-              color: isDarkTheme ? Colors.white : Colors.black,
-              fontWeight: FontWeight.bold,
-              fontSize: mediaQuery.size.width * 0.035,
-            ),
-          ),
-        ),
-      ),
+      icon: Icons.star_rate_rounded,
+      isDarkTheme: isDarkTheme,
+      primaryColor: primaryColor,
     );
   }
 
   String _capitalizeWords(String input) {
+    if (input.isEmpty) return input;
     return input
         .split(' ')
         .map(
@@ -1495,19 +2085,27 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 
   void _showSnackBar(BuildContext context, String message, bool isSuccess) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: isSuccess ? Colors.green : Colors.red,
+        backgroundColor: isSuccess ? colorScheme.primary : colorScheme.error,
         content: Center(
           child: Text(
             message,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: colorScheme.onPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
         ),
-        duration: const Duration(seconds: 2),
+        duration: Duration(seconds: 2),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        ),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.all(16),
       ),
     );
   }

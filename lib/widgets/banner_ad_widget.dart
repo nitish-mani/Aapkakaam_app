@@ -66,8 +66,8 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   Widget build(BuildContext context) {
     if (!_isLoaded || _bannerAd == null) return const SizedBox.shrink();
     return SizedBox(
-      width: _bannerAd!.size.width.toDouble(),
-      height: _bannerAd!.size.height.toDouble(),
+      // width: _bannerAd!.size.width.toDouble(),
+      // height: _bannerAd!.size.height.toDouble(),
       // child: AdWidget(ad: _bannerAd!),
     );
   }

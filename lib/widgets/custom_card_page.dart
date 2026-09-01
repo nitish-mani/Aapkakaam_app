@@ -1,10 +1,11 @@
-// This file is responsive and optimized.
+// This file is responsive and optimized with Emoji Support
 
 import 'dart:convert';
 import 'package:app_aapkakaam/widgets/address_page.dart';
 import 'package:app_aapkakaam/widgets/booking_date_selection.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class CustomCardPage extends StatefulWidget {
   const CustomCardPage({
@@ -68,10 +69,10 @@ class _CustomCardPageState extends State<CustomCardPage> {
       builder:
           (context) => AlertDialog(
             title: const Text(
-              'Address Required',
+              '📍 Address Required',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            content: const Text('Please add your address to continue.'),
+            content: const Text('Please add your address to continue booking.'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
@@ -115,22 +116,32 @@ class _CustomCardPageState extends State<CustomCardPage> {
 
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final screenWidth = mediaQuery.size.width;
-    final paddingV = _responsiveValue(screenWidth, 12, 16, 20);
-    final paddingH = _responsiveValue(screenWidth, 8, 12, 16);
+    final screenWidth = MediaQuery.of(context).size.width;
     final useGridView = screenWidth >= 500;
 
     return Container(
-      padding: EdgeInsets.symmetric(vertical: paddingV, horizontal: paddingH),
+      padding: EdgeInsets.symmetric(vertical: 12.h, horizontal: 8.w),
       decoration: BoxDecoration(
-        color: widget.cardColor,
-        borderRadius: BorderRadius.circular(12.0),
+        gradient: LinearGradient(
+          colors:
+              widget.isDarkTheme
+                  ? [
+                    widget.cardColor.withOpacity(0.3),
+                    widget.cardColor.withOpacity(0.1),
+                  ]
+                  : [
+                    widget.cardColor.withOpacity(0.2),
+                    widget.cardColor.withOpacity(0.05),
+                  ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16.r),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 10.r,
+            offset: Offset(0, 4.h),
           ),
         ],
       ),
@@ -146,10 +157,10 @@ class _CustomCardPageState extends State<CustomCardPage> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: _responsiveValue(screenWidth, 180, 200, 220),
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.85,
+        maxCrossAxisExtent: _responsiveValue(screenWidth, 160.w, 180.w, 200.w),
+        mainAxisSpacing: 12.h,
+        crossAxisSpacing: 12.w,
+        childAspectRatio: 0.9,
       ),
       itemCount: widget.imageData.length,
       itemBuilder: (context, index) {
@@ -160,8 +171,9 @@ class _CustomCardPageState extends State<CustomCardPage> {
                 : widget.cardSecondChildColor;
         return _buildServiceCard(
           context,
-          item['image'],
-          item['title'],
+          item['image'] ?? '📌', // Fallback emoji
+          item['title'] ?? 'Service',
+          item['hindi'] ?? '',
           color,
           screenWidth,
         );
@@ -183,8 +195,9 @@ class _CustomCardPageState extends State<CustomCardPage> {
             Expanded(
               child: _buildServiceCard(
                 context,
-                first['image'],
-                first['title'],
+                first['image'] ?? '📌',
+                first['title'] ?? 'Service',
+                first['hindi'] ?? '',
                 isReverse
                     ? widget.cardSecondChildColor
                     : widget.cardFirstChildColor,
@@ -195,8 +208,9 @@ class _CustomCardPageState extends State<CustomCardPage> {
               Expanded(
                 child: _buildServiceCard(
                   context,
-                  second['image'],
-                  second['title'],
+                  second['image'] ?? '📌',
+                  second['title'] ?? 'Service',
+                  second['hindi'] ?? '',
                   isReverse
                       ? widget.cardFirstChildColor
                       : widget.cardSecondChildColor,
@@ -207,7 +221,7 @@ class _CustomCardPageState extends State<CustomCardPage> {
         ),
       );
 
-      rows.add(SizedBox(height: screenWidth * 0.03));
+      rows.add(SizedBox(height: 8.h));
     }
 
     return Column(children: rows);
@@ -226,61 +240,181 @@ class _CustomCardPageState extends State<CustomCardPage> {
 
   Widget _buildServiceCard(
     BuildContext context,
-    String imagePath,
+    String emoji,
     String title,
+    String hindiTitle,
     Color color,
     double screenWidth,
   ) {
-    final fontSize = _responsiveValue(screenWidth, 12, 14, 16);
-    final padding = _responsiveValue(screenWidth, 8, 10, 12);
+    final fontSize = _responsiveValue(screenWidth, 12.sp, 14.sp, 16.sp);
+    final padding = _responsiveValue(screenWidth, 8.w, 10.w, 12.w);
+
+    // Get gradient colors based on emoji
+    List<Color> gradientColors = _getEmojiGradient(emoji);
 
     return Padding(
-      padding: const EdgeInsets.all(4.0),
+      padding: EdgeInsets.all(4.w),
       child: InkWell(
         onTap: () => _handleServiceTap(context, title),
-        borderRadius: BorderRadius.circular(12.0),
+        borderRadius: BorderRadius.circular(14.r),
+        splashColor: Colors.white.withOpacity(0.2),
+        highlightColor: Colors.white.withOpacity(0.1),
         child: Container(
           padding: EdgeInsets.all(padding),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12.0),
-            color: color,
+            borderRadius: BorderRadius.circular(14.r),
+            gradient: LinearGradient(
+              colors:
+                  widget.isDarkTheme
+                      ? [color.withOpacity(0.3), color.withOpacity(0.1)]
+                      : gradientColors,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 2,
-                offset: const Offset(0, 1),
+                color: color.withOpacity(0.2),
+                blurRadius: 8.r,
+                offset: Offset(0, 3.h),
               ),
             ],
+            border: Border.all(
+              color:
+                  widget.isDarkTheme
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.white.withOpacity(0.3),
+              width: 1,
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10.0),
-                child: AspectRatio(
-                  aspectRatio: 1.1,
-                  child: Image.asset(imagePath, fit: BoxFit.cover),
+              // Emoji Container
+              Container(
+                padding: EdgeInsets.all(10.w),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors:
+                        widget.isDarkTheme
+                            ? [
+                              Colors.white.withOpacity(0.15),
+                              Colors.white.withOpacity(0.05),
+                            ]
+                            : gradientColors,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.3),
+                      blurRadius: 12.r,
+                      offset: Offset(0, 4.h),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  emoji,
+                  style: TextStyle(
+                    fontSize: _responsiveValue(
+                      screenWidth,
+                      28.sp,
+                      32.sp,
+                      36.sp,
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  title,
+              SizedBox(height: 8.h),
+              // English Title
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.bold,
+                  color: widget.isDarkTheme ? Colors.white : Colors.black87,
+                  letterSpacing: 0.3,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              SizedBox(height: 2.h),
+              // Hindi Title
+              if (hindiTitle.isNotEmpty)
+                Text(
+                  hindiTitle,
                   style: TextStyle(
-                    fontSize: fontSize,
-                    fontWeight: FontWeight.bold,
-                    color: widget.isDarkTheme ? Colors.white : Colors.black,
+                    fontSize: fontSize * 0.8,
+                    fontWeight: FontWeight.w400,
+                    color:
+                        widget.isDarkTheme
+                            ? Colors.grey[400]
+                            : Colors.grey[600],
                   ),
                   textAlign: TextAlign.center,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  // ============================================================
+  // Emoji Gradient Helper
+  // ============================================================
+  List<Color> _getEmojiGradient(String emoji) {
+    final emojiColors = {
+      '👷': [const Color(0xFFFF6B35), const Color(0xFFF7931E)],
+      '🧱': [const Color(0xFFE74C3C), const Color(0xFFC0392B)],
+      '⚡': [const Color(0xFFFFD700), const Color(0xFFFFA500)],
+      '🔧': [const Color(0xFF3498DB), const Color(0xFF2980B9)],
+      '🎨': [const Color(0xFF9B59B6), const Color(0xFF8E44AD)],
+      '🪚': [const Color(0xFF2ECC71), const Color(0xFF27AE60)],
+      '🔲': [const Color(0xFF95A5A6), const Color(0xFF7F8C8D)],
+      '💎': [const Color(0xFF1ABC9C), const Color(0xFF16A085)],
+      '🏛️': [const Color(0xFFF39C12), const Color(0xFFE67E22)],
+      '❄️': [const Color(0xFF3498DB), const Color(0xFF2980B9)],
+      '🧊': [const Color(0xFF1ABC9C), const Color(0xFF16A085)],
+      '🏍️': [const Color(0xFFE74C3C), const Color(0xFFC0392B)],
+      '🚗': [const Color(0xFF3498DB), const Color(0xFF2980B9)],
+      '💻': [const Color(0xFF2C3E50), const Color(0xFF34495E)],
+      '🚕': [const Color(0xFFFFD700), const Color(0xFFFFA500)],
+      '📚': [const Color(0xFF9B59B6), const Color(0xFF8E44AD)],
+      '🥛': [const Color(0xFFECF0F1), const Color(0xFFBDC3C7)],
+      '👕': [const Color(0xFF2ECC71), const Color(0xFF27AE60)],
+      '💄': [const Color(0xFFE74C3C), const Color(0xFFC0392B)],
+      '🌸': [const Color(0xFFFF6B81), const Color(0xFFFF4757)],
+      '🕉️': [const Color(0xFFFF6B35), const Color(0xFFF7931E)],
+      '🍳': [const Color(0xFFFFD700), const Color(0xFFFFA500)],
+      '💡': [const Color(0xFFFFD700), const Color(0xFFFFA500)],
+      '⛺': [const Color(0xFF2ECC71), const Color(0xFF27AE60)],
+      '🎵': [const Color(0xFF9B59B6), const Color(0xFF8E44AD)],
+      '⚙️': [const Color(0xFF95A5A6), const Color(0xFF7F8C8D)],
+      '🎧': [const Color(0xFF2C3E50), const Color(0xFF34495E)],
+      '🍽️': [const Color(0xFFE74C3C), const Color(0xFFC0392B)],
+      '💧': [const Color(0xFF3498DB), const Color(0xFF2980B9)],
+      '🍛': [const Color(0xFFFF6B35), const Color(0xFFF7931E)],
+      '🐴': [const Color(0xFF8B4513), const Color(0xFFA0522D)],
+      '🌿': [const Color(0xFF2ECC71), const Color(0xFF27AE60)],
+      '🍎': [const Color(0xFFE74C3C), const Color(0xFFC0392B)],
+      '💒': [const Color(0xFFFF6B81), const Color(0xFFFF4757)],
+      '🚘': [const Color(0xFF3498DB), const Color(0xFF2980B9)],
+      '🚌': [const Color(0xFFFFD700), const Color(0xFFFFA500)],
+      '🛺': [const Color(0xFFFF6B35), const Color(0xFFF7931E)],
+      '🛵': [const Color(0xFF2ECC71), const Color(0xFF27AE60)],
+      '🚚': [const Color(0xFFE74C3C), const Color(0xFFC0392B)],
+      '🌾': [const Color(0xFFF39C12), const Color(0xFFE67E22)],
+      '🔄': [const Color(0xFF3498DB), const Color(0xFF2980B9)],
+      '🧹': [const Color(0xFF95A5A6), const Color(0xFF7F8C8D)],
+      '✂️': [const Color(0xFFE74C3C), const Color(0xFFC0392B)],
+    };
+
+    return emojiColors[emoji] ??
+        [const Color(0xFF6A11CB), const Color(0xFF8E2DE2)];
   }
 }

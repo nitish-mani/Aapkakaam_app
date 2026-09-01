@@ -9,7 +9,6 @@ import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_aapkakaam/widgets/paymentSuccessful.dart';
 import 'package:app_aapkakaam/widgets/paymentFailed.dart';
-import 'package:app_aapkakaam/widgets/transactionHistory.dart';
 
 class PaymentPage extends StatefulWidget {
   const PaymentPage({super.key});
@@ -27,7 +26,6 @@ class _PaymentPageState extends State<PaymentPage> {
   int? _currentAmount;
   double _currentBalance = 0.0;
 
-  // Temporary storage for the active transaction details
   Map<String, dynamic>? _currentTransactionDetails;
 
   final List<Map<String, dynamic>> pricingOptions = [
@@ -41,18 +39,16 @@ class _PaymentPageState extends State<PaymentPage> {
     {"original": 20000, "discounted": 10000},
   ];
 
+  // Language helper
+  String _t(String en, String hi) => isHindiNotifier.value ? hi : en;
+
   @override
   void initState() {
     super.initState();
-
     _razorpay = Razorpay();
-
     _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
-
     _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
-
     _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
-
     _loadCurrentBalance();
   }
 
@@ -105,50 +101,31 @@ class _PaymentPageState extends State<PaymentPage> {
         },
         body: jsonEncode({
           "razorpay_payment_id": response.paymentId,
-
           "razorpay_order_id": response.orderId,
-
           "razorpay_signature": response.signature,
-
           "amount": _currentTransactionDetails!['amount'],
-
           "discount":
               (_currentTransactionDetails!['amount'] *
                   _currentTransactionDetails!['discountPercent'] /
                   100),
-
           "discountPercent": _currentTransactionDetails!['discountPercent'],
-
           "balance": _currentTransactionDetails!['amount'],
-
           "userId": _currentTransactionDetails!['userId'],
-
           "vendorId": _currentTransactionDetails!['vendorId'],
-
           "category": _currentTransactionDetails!['category'],
-
           "name": _currentTransactionDetails!['name'],
-
           "email": _currentTransactionDetails!['email'],
-
           "phoneNo": _currentTransactionDetails!['contact'],
         }),
-      );
-
-      print(
-        'Payment verification status: '
-        '${verifyRes.statusCode}',
       );
 
       final data = jsonDecode(verifyRes.body);
 
       if (data['success'] == true) {
-        // Update local user/vendor data
         await _updateUserData(data);
 
         if (!mounted) return;
 
-        // Navigate to Payment Success Page
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -163,14 +140,12 @@ class _PaymentPageState extends State<PaymentPage> {
           ),
         );
       } else {
-        // Payment verification failed
         if (!mounted) return;
-
         _showMessage(
-          data['message'] ?? 'Payment verification failed',
+          data['message'] ??
+              _t('Payment verification failed', 'भुगतान सत्यापन विफल'),
           Colors.red,
         );
-
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const PaymentFailedPage()),
@@ -178,13 +153,11 @@ class _PaymentPageState extends State<PaymentPage> {
       }
     } catch (e) {
       print('Verification Error: $e');
-
       if (!mounted) return;
-
       setState(() {
-        _errorMessage = "Verification failed: ${e.toString()}";
+        _errorMessage =
+            "${_t('Verification failed', 'सत्यापन विफल')}: ${e.toString()}";
       });
-
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const PaymentFailedPage()),
@@ -202,8 +175,6 @@ class _PaymentPageState extends State<PaymentPage> {
 
   void _handlePaymentError(PaymentFailureResponse response) {
     print('Payment Error: ${response.code} - ${response.message}');
-
-    // Log payment failure
     _logPaymentFailure(
       _currentOrderId ?? '',
       _currentAmount ?? 0,
@@ -215,12 +186,13 @@ class _PaymentPageState extends State<PaymentPage> {
       _loadingIndex = null;
       _isLoading = false;
       _currentTransactionDetails = null;
-      _errorMessage = response.message ?? 'Payment failed';
+      _errorMessage = response.message ?? _t('Payment failed', 'भुगतान विफल');
     });
 
-    _showMessage(response.message ?? 'Payment failed', Colors.red);
-
-    // Navigate to Payment Failed Page
+    _showMessage(
+      response.message ?? _t('Payment failed', 'भुगतान विफल'),
+      Colors.red,
+    );
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const PaymentFailedPage()),
@@ -229,7 +201,10 @@ class _PaymentPageState extends State<PaymentPage> {
 
   void _handleExternalWallet(ExternalWalletResponse response) {
     print('External Wallet: ${response.walletName}');
-    _showMessage('External wallet selected', Colors.blue);
+    _showMessage(
+      _t('External wallet selected', 'बाहरी वॉलेट चुना गया'),
+      Colors.blue,
+    );
   }
 
   Future<void> _updateUserData(Map<String, dynamic> responseData) async {
@@ -244,7 +219,6 @@ class _PaymentPageState extends State<PaymentPage> {
       final decoded = jsonDecode(categoryData);
 
       if (isVendor1) {
-        // Update VendorModel
         final vendor = VendorModel.fromJson(decoded);
         final updatedVendor = vendor.copyWith(
           balance: responseData['balance']?.toDouble() ?? vendor.balance,
@@ -262,7 +236,6 @@ class _PaymentPageState extends State<PaymentPage> {
           _currentBalance = updatedVendor.balance;
         });
       } else {
-        // Update UserModel
         final user = UserModel.fromJson(decoded);
         final updatedUser = user.copyWith(
           balance: responseData['balance']?.toDouble() ?? user.balance,
@@ -354,11 +327,13 @@ class _PaymentPageState extends State<PaymentPage> {
   void _handleRazorpayClose() {
     print('Razorpay modal closed by user');
     _showMessage(
-      'Payment was cancelled. You can try again anytime.',
+      _t(
+        'Payment was cancelled. You can try again anytime.',
+        'भुगतान रद्द कर दिया गया। आप कभी भी पुनः प्रयास कर सकते हैं।',
+      ),
       Colors.orange,
     );
 
-    // Log abandoned payment
     if (_currentOrderId != null && _currentAmount != null) {
       _logAbandonedPayment(_currentOrderId!, _currentAmount!);
     }
@@ -421,7 +396,10 @@ class _PaymentPageState extends State<PaymentPage> {
 
       if (categoryData == null) {
         setState(() {
-          _errorMessage = 'User data not found';
+          _errorMessage = _t(
+            'User data not found',
+            'उपयोगकर्ता डेटा नहीं मिला',
+          );
           _loadingIndex = null;
         });
         return;
@@ -437,7 +415,6 @@ class _PaymentPageState extends State<PaymentPage> {
 
       const serverUrl = KConstantURL.url;
 
-      // Create order on server
       final createOrderRes = await http.post(
         Uri.parse("$serverUrl/payment/create-order"),
         headers: {
@@ -454,19 +431,21 @@ class _PaymentPageState extends State<PaymentPage> {
       );
 
       if (createOrderRes.statusCode != 200) {
-        throw Exception("Order creation failed");
+        throw Exception(_t("Order creation failed", "ऑर्डर निर्माण विफल"));
       }
 
       final orderData = jsonDecode(createOrderRes.body);
 
       if (orderData['success'] != true) {
-        throw Exception(orderData['message'] ?? 'Order creation failed');
+        throw Exception(
+          orderData['message'] ??
+              _t('Order creation failed', 'ऑर्डर निर्माण विफल'),
+        );
       }
 
       final order = orderData['order'];
       _currentOrderId = order['id'];
 
-      // Save transaction details
       _currentTransactionDetails = {
         "token": token,
         "amount": amount,
@@ -484,13 +463,12 @@ class _PaymentPageState extends State<PaymentPage> {
         _loadingIndex = null;
       });
 
-      // Razorpay options
       var options = {
-        'key': 'rzp_test_THfazRmCIeemjt', // Replace with your key
+        'key': 'rzp_live_ymm3SOr7DUIJiM',
         'amount': order['amount'].toString(),
         'currency': order['currency'] ?? 'INR',
         'name': 'Aapkakaam',
-        'description': 'Purchase Credits - ₹$amount',
+        'description': '${_t('Purchase Credits', 'क्रेडिट खरीदें')} - ₹$amount',
         'order_id': order['id'],
         'prefill': {'contact': contact, 'email': email, 'name': name},
         'notes': {
@@ -500,14 +478,15 @@ class _PaymentPageState extends State<PaymentPage> {
           'amount': amount,
           'discountPercent': discountPercent,
         },
-        'theme': {"color": "#4f46e5"},
+        'theme': {
+          "color": Theme.of(context).colorScheme.primary.value.toString(),
+        },
         'timeout': 300,
       };
 
-      // Open Razorpay checkout
       _razorpay!.open(options);
     } catch (e) {
-      print('Error in handlePay: $e');
+      // print('Error in handlePay: $e');
       setState(() {
         _errorMessage = e.toString();
         _loadingIndex = null;
@@ -520,20 +499,30 @@ class _PaymentPageState extends State<PaymentPage> {
 
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
+    final surface = colorScheme.surface;
+    final onSurface = colorScheme.onSurface;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isVendor1 = isVendor.value;
+    final isHindi = isHindiNotifier.value;
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.grey[900] : Colors.grey[50],
+      backgroundColor:
+          isDark ? const Color(0xFF0B1020) : const Color(0xFFF7F9FC),
       appBar: AppBar(
-        title: const Text(
-          "Add Balance",
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+        title: Text(
+          _t("Add Balance", "बैलेंस जोड़ें"),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+            color: isDark ? Colors.white : onSurface,
+          ),
         ),
-        backgroundColor: isDark ? Colors.grey[850] : Colors.white,
+        backgroundColor: isDark ? const Color(0xFF1A1A2E) : surface,
         elevation: 0,
-        foregroundColor: isDark ? Colors.white : Colors.black87,
+        foregroundColor: isDark ? Colors.white : onSurface,
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new),
@@ -547,16 +536,22 @@ class _PaymentPageState extends State<PaymentPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header Section
-              // Header Section
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.blue.shade600, Colors.purple.shade600],
+                    colors: [primaryColor, primaryColor.withOpacity(0.7)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primaryColor.withOpacity(0.2),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -581,7 +576,7 @@ class _PaymentPageState extends State<PaymentPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Add Balance',
+                                _t('Add Balance', 'बैलेंस जोड़ें'),
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
@@ -589,7 +584,7 @@ class _PaymentPageState extends State<PaymentPage> {
                                 ),
                               ),
                               Text(
-                                'Current Balance: ₹${_currentBalance.toStringAsFixed(2)}',
+                                '${_t('Current Balance', 'वर्तमान बैलेंस')}: ₹${_currentBalance.toStringAsFixed(2)}',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: Colors.white.withOpacity(0.9),
@@ -603,7 +598,6 @@ class _PaymentPageState extends State<PaymentPage> {
                     const SizedBox(height: 12),
                     OutlinedButton(
                       onPressed: () {
-                        // FIX: Actually navigate to the page
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -622,8 +616,8 @@ class _PaymentPageState extends State<PaymentPage> {
                           vertical: 8,
                         ),
                       ),
-                      child: const Text(
-                        'Transaction History',
+                      child: Text(
+                        _t('Transaction History', 'लेन-देन इतिहास'),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -681,10 +675,13 @@ class _PaymentPageState extends State<PaymentPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const CircularProgressIndicator(),
+                        CircularProgressIndicator(color: primaryColor),
                         const SizedBox(height: 16),
                         Text(
-                          'Preparing payment...',
+                          _t(
+                            'Preparing payment...',
+                            'भुगतान तैयार हो रहा है...',
+                          ),
                           style: TextStyle(
                             color: isDark ? Colors.white70 : Colors.grey[600],
                             fontSize: 14,
@@ -695,7 +692,6 @@ class _PaymentPageState extends State<PaymentPage> {
                   ),
                 )
               else
-                // Pricing Options Grid
                 Expanded(
                   child: GridView.builder(
                     gridDelegate:
@@ -708,7 +704,6 @@ class _PaymentPageState extends State<PaymentPage> {
                     itemCount: pricingOptions.length,
                     itemBuilder: (context, index) {
                       final option = pricingOptions[index];
-                      // For users, divide by 10
                       final userAmount = {
                         'discounted': option['discounted'] / 10,
                         'original': option['original'] / 10,
@@ -726,6 +721,8 @@ class _PaymentPageState extends State<PaymentPage> {
                         discountPercent: discountPercent,
                         index: index,
                         isDark: isDark,
+                        primaryColor: primaryColor,
+                        onSurface: onSurface,
                       );
                     },
                   ),
@@ -742,140 +739,163 @@ class _PaymentPageState extends State<PaymentPage> {
     required int discountPercent,
     required int index,
     required bool isDark,
+    required Color primaryColor,
+    required Color onSurface,
   }) {
     final isSelected = _loadingIndex == index;
     final discounted = option['discounted'];
     final original = option['original'];
     final savings = original - discounted;
 
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: isSelected ? Colors.blue.shade400 : Colors.grey.shade200,
-          width: isSelected ? 2 : 1,
-        ),
-      ),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
+    return TweenAnimationBuilder<double>(
+      duration: Duration(milliseconds: 200 + (index * 50)),
+      tween: Tween(begin: 0.0, end: 1.0),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Transform.scale(
+          scale: 0.95 + (0.05 * value),
+          child: Opacity(opacity: value, child: child),
+        );
+      },
+      child: Card(
+        elevation: isSelected ? 8 : 2,
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          gradient:
-              isSelected
-                  ? LinearGradient(
-                    colors: [Colors.blue.shade50, Colors.blue.shade100],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                  : null,
+          side: BorderSide(
+            color: isSelected ? primaryColor : Colors.grey.shade200,
+            width: isSelected ? 2 : 1,
+          ),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Discount badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-              decoration: BoxDecoration(
-                color:
-                    discountPercent > 0
-                        ? Colors.green.shade100
-                        : Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                discountPercent > 0 ? '-$discountPercent%' : '0%',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
+        shadowColor: isSelected ? primaryColor.withOpacity(0.3) : null,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient:
+                isSelected
+                    ? LinearGradient(
+                      colors: [
+                        primaryColor.withOpacity(0.08),
+                        primaryColor.withOpacity(0.03),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                    : null,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Discount badge
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
                   color:
                       discountPercent > 0
-                          ? Colors.green.shade700
-                          : Colors.grey.shade600,
+                          ? Colors.green.shade100
+                          : Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ),
-            ),
-
-            const SizedBox(height: 4),
-
-            // Price
-            Text(
-              '₹$discounted',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
-              ),
-            ),
-
-            // Original price with strike-through
-            if (discountPercent > 0)
-              Text(
-                '₹$original',
-                style: TextStyle(
-                  fontSize: 11,
-                  decoration: TextDecoration.lineThrough,
-                  color: Colors.grey.shade500,
-                ),
-              ),
-
-            const SizedBox(height: 2),
-
-            // Savings
-            if (discountPercent > 0)
-              Text(
-                'Save ₹$savings',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.green.shade600,
-                ),
-              ),
-
-            const SizedBox(height: 8),
-
-            // Pay button
-            SizedBox(
-              width: double.infinity,
-              height: 36,
-              child: ElevatedButton(
-                onPressed:
-                    isSelected || _isLoading
-                        ? null
-                        : () =>
-                        // Pass discounted amount instead of original
-                        handlePay(original.toInt(), discountPercent, index),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      isSelected || _isLoading
-                          ? Colors.grey.shade400
-                          : Colors.blue.shade600,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  elevation: 0,
-                  textStyle: const TextStyle(
-                    fontSize: 12,
+                child: Text(
+                  discountPercent > 0 ? '-$discountPercent%' : '0%',
+                  style: TextStyle(
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
+                    color:
+                        discountPercent > 0
+                            ? Colors.green.shade700
+                            : Colors.grey.shade600,
                   ),
                 ),
-                child:
-                    isSelected || _isLoading
-                        ? const SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                        : const Text('Pay Now'),
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+
+              // Price
+              Text(
+                '₹$discounted',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : onSurface,
+                ),
+              ),
+
+              // Original price with strike-through
+              if (discountPercent > 0)
+                Text(
+                  '₹$original',
+                  style: TextStyle(
+                    fontSize: 11,
+                    decoration: TextDecoration.lineThrough,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              const SizedBox(height: 2),
+
+              // Savings
+              if (discountPercent > 0)
+                Text(
+                  '${_t('Save', 'बचाएं')} ₹$savings',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.green.shade600,
+                  ),
+                ),
+              const SizedBox(height: 8),
+
+              // Pay button
+              SizedBox(
+                width: double.infinity,
+                height: 36,
+                child: ElevatedButton(
+                  onPressed:
+                      isSelected || _isLoading
+                          ? null
+                          : () => handlePay(
+                            original.toInt(),
+                            discountPercent,
+                            index,
+                          ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        isSelected || _isLoading
+                            ? Colors.grey.shade400
+                            : primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: isSelected ? 0 : 2,
+                    shadowColor: primaryColor.withOpacity(0.3),
+                  ),
+                  child:
+                      isSelected || _isLoading
+                          ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                          : Text(
+                            _t('Pay Now', 'अभी भुगतान करें'),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

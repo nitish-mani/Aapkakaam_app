@@ -29,13 +29,10 @@ class Concern {
   });
 
   factory Concern.fromJson(Map<String, dynamic> json) {
-    // Parse UTC date and convert to IST (UTC+5:30)
     DateTime parseDate(dynamic value) {
       if (value == null) return DateTime.now();
       try {
-        // Parse the UTC date from server
         DateTime utcDate = DateTime.parse(value.toString());
-        // Convert to IST (Asia/Kolkata) - Add 5 hours 30 minutes
         return utcDate.add(const Duration(hours: 5, minutes: 30));
       } catch (e) {
         return DateTime.now();
@@ -79,29 +76,37 @@ class _ConcernsPageState extends State<ConcernsPage>
   String _searchQuery = '';
   String _selectedStatus = 'All';
 
-  final List<String> _categories = [
-    'Payment',
-    'Booking',
-    'Service',
-    'Vendor',
-    'User',
-    'Cancellation',
-    'Refund',
-    'Technical',
-    'Other',
+  final List<Map<String, String>> _categories = [
+    {'en': 'Payment', 'hi': 'भुगतान'},
+    {'en': 'Booking', 'hi': 'बुकिंग'},
+    {'en': 'Service', 'hi': 'सेवा'},
+    {'en': 'Vendor', 'hi': 'विक्रेता'},
+    {'en': 'User', 'hi': 'उपयोगकर्ता'},
+    {'en': 'Cancellation', 'hi': 'रद्दीकरण'},
+    {'en': 'Refund', 'hi': 'वापसी'},
+    {'en': 'Technical', 'hi': 'तकनीकी'},
+    {'en': 'Other', 'hi': 'अन्य'},
   ];
 
-  final List<String> _priorities = ['Low', 'Medium', 'High', 'Critical'];
-  final List<String> _statuses = [
-    'All',
-    'Open',
-    'InProgress',
-    'Resolved',
-    'Rejected',
-    'Closed',
+  final List<Map<String, String>> _priorities = [
+    {'en': 'Low', 'hi': 'कम'},
+    {'en': 'Medium', 'hi': 'मध्यम'},
+    {'en': 'High', 'hi': 'उच्च'},
+    {'en': 'Critical', 'hi': 'गंभीर'},
+  ];
+
+  final List<Map<String, String>> _statuses = [
+    {'en': 'All', 'hi': 'सभी'},
+    {'en': 'Open', 'hi': 'खुला'},
+    {'en': 'InProgress', 'hi': 'प्रगति पर'},
+    {'en': 'Resolved', 'hi': 'हल किया'},
+    {'en': 'Rejected', 'hi': 'अस्वीकृत'},
+    {'en': 'Closed', 'hi': 'बंद'},
   ];
 
   late AnimationController _animationController;
+
+  String _t(String en, String hi) => isHindiNotifier.value ? hi : en;
 
   @override
   void initState() {
@@ -158,76 +163,18 @@ class _ConcernsPageState extends State<ConcernsPage>
           });
         }
       } else {
-        _showMessage('Failed to load concerns', Colors.red);
+        _showMessage(
+          _t('Failed to load concerns', 'समस्याएँ लोड करने में विफल'),
+          Colors.red,
+        );
       }
     } catch (e) {
-      _showMessage('Error loading concerns', Colors.red);
+      _showMessage(
+        _t('Error loading concerns', 'समस्याएँ लोड करने में त्रुटि'),
+        Colors.red,
+      );
     } finally {
       setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _submitConcern() async {
-    if (_selectedCategory.isEmpty) {
-      _showMessage('Please select a category', Colors.orange);
-      return;
-    }
-    if (_subjectController.text.trim().isEmpty) {
-      _showMessage('Please enter a subject', Colors.orange);
-      return;
-    }
-    if (_descriptionController.text.trim().isEmpty) {
-      _showMessage('Please enter a description', Colors.orange);
-      return;
-    }
-
-    setState(() => _isSubmitting = true);
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final isVendor1 = isVendor.value;
-      final category = isVendor1 ? 'vendor' : 'user';
-      final categoryData = prefs.getString(category);
-
-      if (categoryData == null) {
-        setState(() => _isSubmitting = false);
-        return;
-      }
-
-      final decoded = jsonDecode(categoryData);
-      final token = 'Bearer ${decoded['token']}';
-
-      final response = await http
-          .post(
-            Uri.parse("${KConstantURL.url}/concerns"),
-            headers: {
-              'Authorization': token,
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode({
-              'category': _selectedCategory,
-              'subject': _subjectController.text.trim(),
-              'description': _descriptionController.text.trim(),
-              'priority': _selectedPriority,
-            }),
-          )
-          .timeout(const Duration(seconds: 15));
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        _showMessage('Concern submitted successfully!', Colors.green);
-        _subjectController.clear();
-        _descriptionController.clear();
-        _selectedCategory = '';
-        _selectedPriority = 'Medium';
-        _animationController.reverse();
-        await _fetchConcerns();
-      } else {
-        _showMessage('Failed to submit concern', Colors.red);
-      }
-    } catch (e) {
-      _showMessage('Error submitting concern', Colors.red);
-    } finally {
-      setState(() => _isSubmitting = false);
     }
   }
 
@@ -244,34 +191,68 @@ class _ConcernsPageState extends State<ConcernsPage>
     );
   }
 
-  // Format date to IST
   String _formatDate(DateTime date) {
-    final months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
+    final months =
+        isHindiNotifier.value
+            ? [
+              'जन',
+              'फर',
+              'मार्च',
+              'अप्रै',
+              'मई',
+              'जून',
+              'जुल',
+              'अग',
+              'सित',
+              'अक्टू',
+              'नव',
+              'दिस',
+            ]
+            : [
+              'Jan',
+              'Feb',
+              'Mar',
+              'Apr',
+              'May',
+              'Jun',
+              'Jul',
+              'Aug',
+              'Sep',
+              'Oct',
+              'Nov',
+              'Dec',
+            ];
     return '${date.day} ${months[date.month - 1]}, ${date.year}';
   }
 
-  // Format time to IST (12-hour format with AM/PM)
   String _getTime(DateTime date) {
-    // Convert to IST if not already
     final istDate = date;
     final hour = istDate.hour;
     final minute = istDate.minute.toString().padLeft(2, '0');
     final ampm = hour >= 12 ? 'PM' : 'AM';
     final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
     return '$displayHour:$minute $ampm';
+  }
+
+  String _getStatusDisplay(String status) {
+    final map = {
+      'Open': _t('Open', 'खुला'),
+      'InProgress': _t('In Progress', 'प्रगति पर'),
+      'Resolved': _t('Resolved', 'हल किया'),
+      'Rejected': _t('Rejected', 'अस्वीकृत'),
+      'Closed': _t('Closed', 'बंद'),
+    };
+    return map[status] ?? status;
+  }
+
+  String _getPriorityDisplay(String priority) {
+    final map = {
+      'Low': _t('Low', 'कम'),
+      'Medium': _t('Medium', 'मध्यम'),
+      'High': _t('High', 'उच्च'),
+      'Critical': _t('Critical', 'गंभीर'),
+    };
+    return map[priority] ?? priority;
   }
 
   Color _getStatusColor(String status) {
@@ -321,49 +302,56 @@ class _ConcernsPageState extends State<ConcernsPage>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
+    final surface = colorScheme.surface;
+    final onSurface = colorScheme.onSurface;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.grey[900] : Colors.grey[50],
+      backgroundColor:
+          isDark ? const Color(0xFF0B1020) : const Color(0xFFF7F9FC),
       body: SafeArea(
         child: Column(
           children: [
-            // Header
-            _buildHeader(isDark),
-
-            // Stats Row
-            _buildStatsRow(isDark),
-
-            // Search & Filter
-            _buildSearchBar(isDark),
-
-            // Main Content
+            _buildHeader(isDark, primaryColor, surface, onSurface),
+            _buildStatsRow(isDark, primaryColor, surface, onSurface),
+            _buildSearchBar(isDark, surface, onSurface, primaryColor),
             Expanded(
               child:
                   _isLoading
-                      ? _buildLoadingState()
+                      ? _buildLoadingState(primaryColor)
                       : _filteredConcerns.isEmpty
-                      ? _buildEmptyState(isDark)
-                      : _buildConcernsList(isDark),
+                      ? _buildEmptyState(isDark, onSurface)
+                      : _buildConcernsList(
+                        isDark,
+                        surface,
+                        onSurface,
+                        primaryColor,
+                      ),
             ),
           ],
         ),
       ),
-
-      // Floating Action Button
-      floatingActionButton: _buildFAB(),
+      floatingActionButton: _buildFAB(primaryColor),
     );
   }
 
-  Widget _buildHeader(bool isDark) {
+  Widget _buildHeader(
+    bool isDark,
+    Color primaryColor,
+    Color surface,
+    Color onSurface,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors:
               isDark
-                  ? [Colors.grey[850]!, Colors.grey[900]!]
-                  : [Colors.white, Colors.grey[50]!],
+                  ? [const Color(0xFF1A1A2E), const Color(0xFF0B1020)]
+                  : [surface, const Color(0xFFF7F9FC)],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
@@ -381,7 +369,7 @@ class _ConcernsPageState extends State<ConcernsPage>
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Colors.amber.shade400, Colors.orange.shade500],
+                colors: [primaryColor, primaryColor.withOpacity(0.7)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -395,15 +383,15 @@ class _ConcernsPageState extends State<ConcernsPage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'My Concerns',
+                  _t('My Concerns', 'मेरी समस्याएँ'),
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black87,
+                    color: isDark ? Colors.white : onSurface,
                   ),
                 ),
                 Text(
-                  '${_concerns.length} total • ${_concerns.where((c) => c.status == 'Open' || c.status == 'InProgress').length} active',
+                  '${_concerns.length} ${_t('total', 'कुल')} • ${_concerns.where((c) => c.status == 'Open' || c.status == 'InProgress').length} ${_t('active', 'सक्रिय')}',
                   style: TextStyle(
                     fontSize: 12,
                     color: isDark ? Colors.grey[400] : Colors.grey[600],
@@ -431,7 +419,12 @@ class _ConcernsPageState extends State<ConcernsPage>
     );
   }
 
-  Widget _buildStatsRow(bool isDark) {
+  Widget _buildStatsRow(
+    bool isDark,
+    Color primaryColor,
+    Color surface,
+    Color onSurface,
+  ) {
     final pending =
         _concerns
             .where((c) => c.status == 'Open' || c.status == 'InProgress')
@@ -439,14 +432,29 @@ class _ConcernsPageState extends State<ConcernsPage>
     final resolved = _concerns.where((c) => c.status == 'Resolved').length;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          _buildStatCard('Total', _concerns.length, Colors.blue, isDark),
+          _buildStatCard(
+            _t('Total', 'कुल'),
+            _concerns.length,
+            primaryColor,
+            isDark,
+          ),
           const SizedBox(width: 8),
-          _buildStatCard('Pending', pending, Colors.orange, isDark),
+          _buildStatCard(
+            _t('Pending', 'लंबित'),
+            pending,
+            Colors.orange,
+            isDark,
+          ),
           const SizedBox(width: 8),
-          _buildStatCard('Resolved', resolved, Colors.green, isDark),
+          _buildStatCard(
+            _t('Resolved', 'हल किया'),
+            resolved,
+            Colors.green,
+            isDark,
+          ),
         ],
       ),
     );
@@ -457,9 +465,16 @@ class _ConcernsPageState extends State<ConcernsPage>
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: isDark ? Colors.grey[850] : Colors.white,
+          color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color.withOpacity(0.2), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           children: [
@@ -484,17 +499,29 @@ class _ConcernsPageState extends State<ConcernsPage>
     );
   }
 
-  Widget _buildSearchBar(bool isDark) {
+  Widget _buildSearchBar(
+    bool isDark,
+    Color surface,
+    Color onSurface,
+    Color primaryColor,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
           Expanded(
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              // padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: isDark ? Colors.grey[800] : Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color:
+                      isDark
+                          ? Colors.white.withOpacity(0.06)
+                          : const Color(0xFFE8ECF3),
+                  width: 1,
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.04),
@@ -505,7 +532,7 @@ class _ConcernsPageState extends State<ConcernsPage>
               ),
               child: TextField(
                 decoration: InputDecoration(
-                  hintText: 'Search concerns...',
+                  hintText: _t('Search concerns...', 'समस्याएँ खोजें...'),
                   hintStyle: TextStyle(
                     color: isDark ? Colors.grey[500] : Colors.grey[400],
                     fontSize: 13,
@@ -519,7 +546,7 @@ class _ConcernsPageState extends State<ConcernsPage>
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 ),
                 style: TextStyle(
-                  color: isDark ? Colors.white : Colors.black87,
+                  color: isDark ? Colors.white : onSurface,
                   fontSize: 14,
                 ),
                 onChanged: (value) => setState(() => _searchQuery = value),
@@ -530,8 +557,15 @@ class _ConcernsPageState extends State<ConcernsPage>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             decoration: BoxDecoration(
-              color: isDark ? Colors.grey[800] : Colors.white,
+              color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color:
+                    isDark
+                        ? Colors.white.withOpacity(0.06)
+                        : const Color(0xFFE8ECF3),
+                width: 1,
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.04),
@@ -548,15 +582,17 @@ class _ConcernsPageState extends State<ConcernsPage>
                   color: isDark ? Colors.grey[400] : Colors.grey[600],
                 ),
                 style: TextStyle(
-                  color: isDark ? Colors.white : Colors.black87,
+                  color: isDark ? Colors.white : onSurface,
                   fontSize: 13,
                 ),
-                dropdownColor: isDark ? Colors.grey[800] : Colors.white,
+                dropdownColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
                 items:
                     _statuses.map((status) {
+                      final display =
+                          isHindiNotifier.value ? status['hi']! : status['en']!;
                       return DropdownMenuItem(
-                        value: status,
-                        child: Text(status),
+                        value: status['en'],
+                        child: Text(display),
                       );
                     }).toList(),
                 onChanged: (value) => setState(() => _selectedStatus = value!),
@@ -568,23 +604,23 @@ class _ConcernsPageState extends State<ConcernsPage>
     );
   }
 
-  Widget _buildLoadingState() {
-    return const Center(
+  Widget _buildLoadingState(Color primaryColor) {
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CircularProgressIndicator(strokeWidth: 3, color: Colors.blue),
-          SizedBox(height: 16),
+          CircularProgressIndicator(strokeWidth: 3, color: primaryColor),
+          const SizedBox(height: 16),
           Text(
-            'Loading concerns...',
-            style: TextStyle(color: Colors.grey, fontSize: 14),
+            _t('Loading concerns...', 'समस्याएँ लोड हो रही हैं...'),
+            style: const TextStyle(color: Colors.grey, fontSize: 14),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyState(bool isDark) {
+  Widget _buildEmptyState(bool isDark, Color onSurface) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -602,19 +638,25 @@ class _ConcernsPageState extends State<ConcernsPage>
             const SizedBox(height: 16),
             Text(
               _searchQuery.isEmpty && _selectedStatus == 'All'
-                  ? 'No concerns yet'
-                  : 'No matching concerns',
+                  ? _t('No concerns yet', 'अभी कोई समस्या नहीं')
+                  : _t('No matching concerns', 'कोई मेल खाने वाली समस्या नहीं'),
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
+                color: isDark ? Colors.white : onSurface,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               _searchQuery.isEmpty && _selectedStatus == 'All'
-                  ? 'Submit your first concern to get started'
-                  : 'Try adjusting your search or filters',
+                  ? _t(
+                    'Submit your first concern to get started',
+                    'शुरू करने के लिए अपनी पहली समस्या सबमिट करें',
+                  )
+                  : _t(
+                    'Try adjusting your search or filters',
+                    'अपनी खोज या फ़िल्टर समायोजित करें',
+                  ),
               style: TextStyle(
                 fontSize: 14,
                 color: isDark ? Colors.grey[400] : Colors.grey[600],
@@ -630,7 +672,7 @@ class _ConcernsPageState extends State<ConcernsPage>
                     _selectedStatus = 'All';
                   });
                 },
-                child: const Text('Clear Filters'),
+                child: Text(_t('Clear Filters', 'फ़िल्टर साफ़ करें')),
               ),
             ],
           ],
@@ -639,18 +681,35 @@ class _ConcernsPageState extends State<ConcernsPage>
     );
   }
 
-  Widget _buildConcernsList(bool isDark) {
+  Widget _buildConcernsList(
+    bool isDark,
+    Color surface,
+    Color onSurface,
+    Color primaryColor,
+  ) {
     return ListView.builder(
       padding: const EdgeInsets.all(12),
       itemCount: _filteredConcerns.length,
       itemBuilder: (context, index) {
         final concern = _filteredConcerns[index];
-        return _buildConcernCard(concern, isDark);
+        return _buildConcernCard(
+          concern,
+          isDark,
+          surface,
+          onSurface,
+          primaryColor,
+        );
       },
     );
   }
 
-  Widget _buildConcernCard(Concern concern, bool isDark) {
+  Widget _buildConcernCard(
+    Concern concern,
+    bool isDark,
+    Color surface,
+    Color onSurface,
+    Color primaryColor,
+  ) {
     final statusColor = _getStatusColor(concern.status);
     final priorityColor = _getPriorityColor(concern.priority);
 
@@ -658,8 +717,13 @@ class _ConcernsPageState extends State<ConcernsPage>
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[850] : Colors.white,
+        color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color:
+              isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFE8ECF3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -696,7 +760,7 @@ class _ConcernsPageState extends State<ConcernsPage>
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      concern.status,
+                      _getStatusDisplay(concern.status),
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
@@ -713,20 +777,23 @@ class _ConcernsPageState extends State<ConcernsPage>
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade100,
+                  color: primaryColor.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  concern.category,
+                  isHindiNotifier.value
+                      ? _categories.firstWhere(
+                        (c) => c['en'] == concern.category,
+                      )['hi']!
+                      : concern.category,
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
-                    color: Colors.blue.shade700,
+                    color: primaryColor,
                   ),
                 ),
               ),
               const Spacer(),
-              // Show IST time
               Text(
                 '${_formatDate(concern.createdAt)} • ${_getTime(concern.createdAt)}',
                 style: TextStyle(
@@ -745,7 +812,7 @@ class _ConcernsPageState extends State<ConcernsPage>
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white : Colors.black87,
+              color: isDark ? Colors.white : onSurface,
             ),
           ),
 
@@ -765,7 +832,7 @@ class _ConcernsPageState extends State<ConcernsPage>
 
           const SizedBox(height: 12),
 
-          // Priority & Time
+          // Priority
           Row(
             children: [
               Container(
@@ -778,7 +845,7 @@ class _ConcernsPageState extends State<ConcernsPage>
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  concern.priority,
+                  _getPriorityDisplay(concern.priority),
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
@@ -811,7 +878,7 @@ class _ConcernsPageState extends State<ConcernsPage>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Admin Response',
+                          _t('Admin Response', 'प्रशासक उत्तर'),
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
@@ -841,7 +908,14 @@ class _ConcernsPageState extends State<ConcernsPage>
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
-              onPressed: () => _showDetailDialog(concern, isDark),
+              onPressed:
+                  () => _showDetailDialog(
+                    concern,
+                    isDark,
+                    surface,
+                    onSurface,
+                    primaryColor,
+                  ),
               style: OutlinedButton.styleFrom(
                 side: BorderSide(
                   color: isDark ? Colors.grey[600]! : Colors.grey[300]!,
@@ -852,7 +926,7 @@ class _ConcernsPageState extends State<ConcernsPage>
                 padding: const EdgeInsets.symmetric(vertical: 10),
               ),
               child: Text(
-                'View Details',
+                _t('View Details', 'विवरण देखें'),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -866,7 +940,13 @@ class _ConcernsPageState extends State<ConcernsPage>
     );
   }
 
-  void _showDetailDialog(Concern concern, bool isDark) {
+  void _showDetailDialog(
+    Concern concern,
+    bool isDark,
+    Color surface,
+    Color onSurface,
+    Color primaryColor,
+  ) {
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -875,7 +955,7 @@ class _ConcernsPageState extends State<ConcernsPage>
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
-            backgroundColor: isDark ? Colors.grey[850] : Colors.white,
+            backgroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
             child: Container(
               padding: const EdgeInsets.all(20),
               constraints: BoxConstraints(
@@ -898,7 +978,7 @@ class _ConcernsPageState extends State<ConcernsPage>
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.white : Colors.black87,
+                                color: isDark ? Colors.white : onSurface,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -916,7 +996,7 @@ class _ConcernsPageState extends State<ConcernsPage>
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
-                                    concern.status,
+                                    _getStatusDisplay(concern.status),
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w600,
@@ -956,14 +1036,18 @@ class _ConcernsPageState extends State<ConcernsPage>
                   Row(
                     children: [
                       _buildDetailChip(
-                        'Category',
-                        concern.category,
+                        _t('Category', 'श्रेणी'),
+                        isHindiNotifier.value
+                            ? _categories.firstWhere(
+                              (c) => c['en'] == concern.category,
+                            )['hi']!
+                            : concern.category,
                         Colors.blue,
                       ),
                       const SizedBox(width: 8),
                       _buildDetailChip(
-                        'Priority',
-                        concern.priority,
+                        _t('Priority', 'प्राथमिकता'),
+                        _getPriorityDisplay(concern.priority),
                         _getPriorityColor(concern.priority),
                       ),
                     ],
@@ -973,7 +1057,7 @@ class _ConcernsPageState extends State<ConcernsPage>
 
                   // Description
                   Text(
-                    'Description',
+                    _t('Description', 'विवरण'),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -991,16 +1075,17 @@ class _ConcernsPageState extends State<ConcernsPage>
                       concern.description,
                       style: TextStyle(
                         fontSize: 14,
-                        color: isDark ? Colors.white : Colors.black87,
+                        color: isDark ? Colors.white : onSurface,
                         height: 1.5,
                       ),
                     ),
                   ),
 
-                  if (concern.adminResponse != null) ...[
+                  if (concern.adminResponse != null &&
+                      concern.adminResponse!.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Text(
-                      'Admin Response',
+                      _t('Admin Response', 'प्रशासक उत्तर'),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -1025,7 +1110,7 @@ class _ConcernsPageState extends State<ConcernsPage>
                         concern.adminResponse!,
                         style: TextStyle(
                           fontSize: 14,
-                          color: isDark ? Colors.white : Colors.black87,
+                          color: isDark ? Colors.white : onSurface,
                           height: 1.5,
                         ),
                       ),
@@ -1040,14 +1125,15 @@ class _ConcernsPageState extends State<ConcernsPage>
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(context),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade600,
+                        backgroundColor: primaryColor,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
+                        elevation: 0,
                       ),
-                      child: const Text('Close'),
+                      child: Text(_t('Close', 'बंद करें')),
                     ),
                   ),
                 ],
@@ -1082,14 +1168,12 @@ class _ConcernsPageState extends State<ConcernsPage>
     );
   }
 
-  Widget _buildFAB() {
+  Widget _buildFAB(Color primaryColor) {
     return FloatingActionButton.extended(
-      onPressed: () {
-        _showNewConcernDialog();
-      },
+      onPressed: () => _showNewConcernDialog(),
       icon: const Icon(Icons.add),
-      label: const Text('New Concern'),
-      backgroundColor: Colors.blue.shade600,
+      label: Text(_t('New Concern', 'नई समस्या')),
+      backgroundColor: primaryColor,
       foregroundColor: Colors.white,
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1098,6 +1182,12 @@ class _ConcernsPageState extends State<ConcernsPage>
 
   void _showNewConcernDialog() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
+    final surface = colorScheme.surface;
+    final onSurface = colorScheme.onSurface;
+
     String category = '';
     String priority = 'Medium';
     final subjectController = TextEditingController();
@@ -1113,7 +1203,8 @@ class _ConcernsPageState extends State<ConcernsPage>
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
-                backgroundColor: isDark ? Colors.grey[850] : Colors.white,
+                backgroundColor:
+                    isDark ? const Color(0xFF1A1A2E) : Colors.white,
                 child: Container(
                   padding: const EdgeInsets.all(20),
                   constraints: BoxConstraints(
@@ -1129,11 +1220,11 @@ class _ConcernsPageState extends State<ConcernsPage>
                           children: [
                             Expanded(
                               child: Text(
-                                'New Concern',
+                                _t('New Concern', 'नई समस्या'),
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
-                                  color: isDark ? Colors.white : Colors.black87,
+                                  color: isDark ? Colors.white : onSurface,
                                 ),
                               ),
                             ),
@@ -1147,19 +1238,24 @@ class _ConcernsPageState extends State<ConcernsPage>
                             ),
                           ],
                         ),
-
                         const SizedBox(height: 16),
 
                         // Category
                         DropdownButtonFormField<String>(
                           decoration: InputDecoration(
-                            labelText: 'Category *',
+                            labelText: _t('Category *', 'श्रेणी *'),
                             labelStyle: TextStyle(
                               color:
                                   isDark ? Colors.grey[400] : Colors.grey[600],
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color:
+                                    isDark
+                                        ? Colors.grey[700]!
+                                        : Colors.grey[300]!,
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -1172,8 +1268,8 @@ class _ConcernsPageState extends State<ConcernsPage>
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Colors.blue,
+                              borderSide: BorderSide(
+                                color: primaryColor,
                                 width: 2,
                               ),
                             ),
@@ -1183,12 +1279,16 @@ class _ConcernsPageState extends State<ConcernsPage>
                             ),
                           ),
                           value: category.isEmpty ? null : category,
-                          hint: const Text('Select Category'),
+                          hint: Text(_t('Select Category', 'श्रेणी चुनें')),
                           items:
                               _categories.map((cat) {
+                                final display =
+                                    isHindiNotifier.value
+                                        ? cat['hi']!
+                                        : cat['en']!;
                                 return DropdownMenuItem(
-                                  value: cat,
-                                  child: Text(cat),
+                                  value: cat['en'],
+                                  child: Text(display),
                                 );
                               }).toList(),
                           onChanged:
@@ -1201,13 +1301,19 @@ class _ConcernsPageState extends State<ConcernsPage>
                         // Priority
                         DropdownButtonFormField<String>(
                           decoration: InputDecoration(
-                            labelText: 'Priority *',
+                            labelText: _t('Priority *', 'प्राथमिकता *'),
                             labelStyle: TextStyle(
                               color:
                                   isDark ? Colors.grey[400] : Colors.grey[600],
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color:
+                                    isDark
+                                        ? Colors.grey[700]!
+                                        : Colors.grey[300]!,
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -1220,8 +1326,8 @@ class _ConcernsPageState extends State<ConcernsPage>
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Colors.blue,
+                              borderSide: BorderSide(
+                                color: primaryColor,
                                 width: 2,
                               ),
                             ),
@@ -1233,9 +1339,13 @@ class _ConcernsPageState extends State<ConcernsPage>
                           value: priority,
                           items:
                               _priorities.map((pri) {
+                                final display =
+                                    isHindiNotifier.value
+                                        ? pri['hi']!
+                                        : pri['en']!;
                                 return DropdownMenuItem(
-                                  value: pri,
-                                  child: Text(pri),
+                                  value: pri['en'],
+                                  child: Text(display),
                                 );
                               }).toList(),
                           onChanged:
@@ -1249,13 +1359,19 @@ class _ConcernsPageState extends State<ConcernsPage>
                         TextField(
                           controller: subjectController,
                           decoration: InputDecoration(
-                            labelText: 'Subject *',
+                            labelText: _t('Subject *', 'विषय *'),
                             labelStyle: TextStyle(
                               color:
                                   isDark ? Colors.grey[400] : Colors.grey[600],
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color:
+                                    isDark
+                                        ? Colors.grey[700]!
+                                        : Colors.grey[300]!,
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -1268,8 +1384,8 @@ class _ConcernsPageState extends State<ConcernsPage>
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Colors.blue,
+                              borderSide: BorderSide(
+                                color: primaryColor,
                                 width: 2,
                               ),
                             ),
@@ -1279,7 +1395,7 @@ class _ConcernsPageState extends State<ConcernsPage>
                             ),
                           ),
                           style: TextStyle(
-                            color: isDark ? Colors.white : Colors.black87,
+                            color: isDark ? Colors.white : onSurface,
                           ),
                           maxLength: 200,
                         ),
@@ -1290,13 +1406,19 @@ class _ConcernsPageState extends State<ConcernsPage>
                         TextField(
                           controller: descriptionController,
                           decoration: InputDecoration(
-                            labelText: 'Description *',
+                            labelText: _t('Description *', 'विवरण *'),
                             labelStyle: TextStyle(
                               color:
                                   isDark ? Colors.grey[400] : Colors.grey[600],
                             ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color:
+                                    isDark
+                                        ? Colors.grey[700]!
+                                        : Colors.grey[300]!,
+                              ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -1309,8 +1431,8 @@ class _ConcernsPageState extends State<ConcernsPage>
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Colors.blue,
+                              borderSide: BorderSide(
+                                color: primaryColor,
                                 width: 2,
                               ),
                             ),
@@ -1321,7 +1443,7 @@ class _ConcernsPageState extends State<ConcernsPage>
                             alignLabelWithHint: true,
                           ),
                           style: TextStyle(
-                            color: isDark ? Colors.white : Colors.black87,
+                            color: isDark ? Colors.white : onSurface,
                           ),
                           maxLines: 4,
                           maxLength: 5000,
@@ -1349,7 +1471,7 @@ class _ConcernsPageState extends State<ConcernsPage>
                                   ),
                                 ),
                                 child: Text(
-                                  'Cancel',
+                                  _t('Cancel', 'रद्द करें'),
                                   style: TextStyle(
                                     color:
                                         isDark
@@ -1368,7 +1490,10 @@ class _ConcernsPageState extends State<ConcernsPage>
                                         : () async {
                                           if (category.isEmpty) {
                                             _showMessage(
-                                              'Please select a category',
+                                              _t(
+                                                'Please select a category',
+                                                'कृपया एक श्रेणी चुनें',
+                                              ),
                                               Colors.orange,
                                             );
                                             return;
@@ -1377,7 +1502,10 @@ class _ConcernsPageState extends State<ConcernsPage>
                                               .trim()
                                               .isEmpty) {
                                             _showMessage(
-                                              'Please enter a subject',
+                                              _t(
+                                                'Please enter a subject',
+                                                'कृपया एक विषय दर्ज करें',
+                                              ),
                                               Colors.orange,
                                             );
                                             return;
@@ -1386,7 +1514,10 @@ class _ConcernsPageState extends State<ConcernsPage>
                                               .trim()
                                               .isEmpty) {
                                             _showMessage(
-                                              'Please enter a description',
+                                              _t(
+                                                'Please enter a description',
+                                                'कृपया एक विवरण दर्ज करें',
+                                              ),
                                               Colors.orange,
                                             );
                                             return;
@@ -1445,20 +1576,29 @@ class _ConcernsPageState extends State<ConcernsPage>
                                             if (response.statusCode == 200 ||
                                                 response.statusCode == 201) {
                                               _showMessage(
-                                                'Concern submitted successfully!',
-                                                Colors.green,
+                                                _t(
+                                                  'Concern submitted successfully!',
+                                                  'समस्या सफलतापूर्वक सबमिट की गई!',
+                                                ),
+                                                primaryColor,
                                               );
                                               Navigator.pop(context);
                                               await _fetchConcerns();
                                             } else {
                                               _showMessage(
-                                                'Failed to submit concern',
+                                                _t(
+                                                  'Failed to submit concern',
+                                                  'समस्या सबमिट करने में विफल',
+                                                ),
                                                 Colors.red,
                                               );
                                             }
                                           } catch (e) {
                                             _showMessage(
-                                              'Error submitting concern',
+                                              _t(
+                                                'Error submitting concern',
+                                                'समस्या सबमिट करने में त्रुटि',
+                                              ),
                                               Colors.red,
                                             );
                                           } finally {
@@ -1468,7 +1608,7 @@ class _ConcernsPageState extends State<ConcernsPage>
                                           }
                                         },
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue.shade600,
+                                  backgroundColor: primaryColor,
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 14,
@@ -1476,10 +1616,11 @@ class _ConcernsPageState extends State<ConcernsPage>
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
+                                  elevation: 0,
                                 ),
                                 child:
                                     _isSubmitting
-                                        ? const SizedBox(
+                                        ? SizedBox(
                                           width: 20,
                                           height: 20,
                                           child: CircularProgressIndicator(
@@ -1487,8 +1628,8 @@ class _ConcernsPageState extends State<ConcernsPage>
                                             color: Colors.white,
                                           ),
                                         )
-                                        : const Text(
-                                          'Submit',
+                                        : Text(
+                                          _t('Submit', 'सबमिट करें'),
                                           style: TextStyle(
                                             fontSize: 14,
                                             fontWeight: FontWeight.w600,

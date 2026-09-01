@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:app_aapkakaam/models/data_model.dart';
-import 'package:app_aapkakaam/widgets/banner_ad_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,6 +26,9 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
   bool _isLoading = false;
   List<String> _postOffices = [];
   String? _selectedPost;
+
+  // Language helper
+  String _t(String en, String hi) => isHindiNotifier.value ? hi : en;
 
   @override
   void dispose() {
@@ -53,7 +55,13 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
       final categoryData = prefs.getString(category);
 
       if (categoryData == null) {
-        setState(() => _errorMessage = 'User data not found');
+        setState(
+          () =>
+              _errorMessage = _t(
+                'User data not found',
+                'उपयोगकर्ता डेटा नहीं मिला',
+              ),
+        );
         return;
       }
 
@@ -73,7 +81,6 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
 
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body)['data'];
-        print(result);
         final offices = result['offices'] ?? [];
 
         final cleanedOffices = List<Map<String, dynamic>>.from(
@@ -87,7 +94,7 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
         );
 
         final allOffices = [
-          {'Name': 'Select Post Office'},
+          {'Name': _t('Select Post Office', 'पोस्ट ऑफिस चुनें')},
           ...cleanedOffices,
         ];
 
@@ -99,14 +106,18 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
         });
       } else {
         setState(() {
-          _errorMessage = 'Enter Valid Pincode';
+          _errorMessage = _t('Enter Valid Pincode', 'सही पिनकोड डालें');
           _districtController.clear();
           _stateController.clear();
           _postOffices.clear();
         });
       }
     } catch (e) {
-      setState(() => _errorMessage = 'Network error: ${e.toString()}');
+      setState(
+        () =>
+            _errorMessage =
+                _t('Network error: ', 'नेटवर्क त्रुटि: ') + e.toString(),
+      );
     } finally {
       setState(() => _isLoading = false);
     }
@@ -124,7 +135,13 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
         post.isEmpty ||
         district.isEmpty ||
         state.isEmpty) {
-      setState(() => _errorMessage = 'Please fill all fields correctly');
+      setState(
+        () =>
+            _errorMessage = _t(
+              'Please fill all fields correctly',
+              'कृपया सभी फील्ड सही भरें',
+            ),
+      );
       return;
     }
 
@@ -140,7 +157,13 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
       final categoryData = prefs.getString(category);
 
       if (categoryData == null) {
-        setState(() => _errorMessage = 'User data not found');
+        setState(
+          () =>
+              _errorMessage = _t(
+                'User data not found',
+                'उपयोगकर्ता डेटा नहीं मिला',
+              ),
+        );
         return;
       }
 
@@ -181,10 +204,16 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
         Navigator.pop(context, true);
         _showSuccessSnackbar(context);
       } else {
-        setState(() => _errorMessage = "Failed to update address");
+        setState(
+          () =>
+              _errorMessage = _t(
+                'Failed to update address',
+                'पता अपडेट करने में विफल',
+              ),
+        );
       }
     } catch (e) {
-      setState(() => _errorMessage = "Error: ${e.toString()}");
+      setState(() => _errorMessage = _t('Error: ', 'त्रुटि: ') + e.toString());
     } finally {
       setState(() => _isLoading = false);
     }
@@ -263,17 +292,25 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
   }
 
   void _showSuccessSnackbar(BuildContext context) {
+    final message = _t(
+      'Address updated successfully',
+      'पता सफलतापूर्वक अपडेट किया गया',
+    );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: Colors.green,
-        content: const Center(
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        content: Center(
           child: Text(
-            "Address updated successfully",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            message,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
         behavior: SnackBarBehavior.floating,
         margin: EdgeInsets.all(MediaQuery.of(context).size.width * 0.05),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -281,139 +318,177 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final isDark = Theme.of(context).brightness != Brightness.dark;
-    final screenWidth = mediaQuery.size.width;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final primaryColor = colorScheme.primary;
+    final surface = colorScheme.surface;
+    final onSurface = colorScheme.onSurface;
+    final onSurfaceVariant = colorScheme.onSurfaceVariant;
 
-    return Dialog(
-      insetPadding: EdgeInsets.all(screenWidth * 0.05),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      backgroundColor: isDark ? Colors.grey[900] : Colors.white,
-      elevation: 8,
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.all(screenWidth * 0.06),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header with Icon
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF2196F3), Color(0xFF1565C0)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.blue.withOpacity(0.3),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.location_on_outlined,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                ),
-              ),
-              SizedBox(height: mediaQuery.size.height * 0.02),
-              // Title
-              Text(
-                'Add Address',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: screenWidth * 0.055,
-                  color: isDark ? Colors.white : Colors.grey[900],
-                  letterSpacing: 0.5,
-                ),
-              ),
-              SizedBox(height: mediaQuery.size.height * 0.01),
-              Text(
-                'Enter your location details',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: screenWidth * 0.035,
-                  color: isDark ? Colors.grey[400] : Colors.grey[600],
-                  letterSpacing: 0.3,
-                ),
-              ),
-              SizedBox(height: mediaQuery.size.height * 0.025),
-              // Error Message
-              if (_errorMessage.isNotEmpty)
-                Container(
-                  padding: EdgeInsets.all(screenWidth * 0.03),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.red.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.error_outline, color: Colors.red, size: 20),
-                      SizedBox(width: screenWidth * 0.02),
-                      Expanded(
-                        child: Text(
-                          _errorMessage,
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontSize: screenWidth * 0.035,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              if (_errorMessage.isNotEmpty)
-                SizedBox(height: mediaQuery.size.height * 0.02),
-              // Village Field
-              _buildTextField(
-                'Village',
-                _villageController,
-                mediaQuery,
-                icon: Icons.house_outlined,
-              ),
-              SizedBox(height: mediaQuery.size.height * 0.02),
-              // Pincode Field
-              _buildPincodeField(mediaQuery),
-              SizedBox(height: mediaQuery.size.height * 0.02),
-              // Post Office Dropdown
-              _buildPostDropdown(mediaQuery),
-              SizedBox(height: mediaQuery.size.height * 0.02),
-              // District Field (Read-only)
-              _buildTextField(
-                'District',
-                _districtController,
-                mediaQuery,
-                readOnly: true,
-                icon: Icons.location_city_outlined,
-              ),
-              SizedBox(height: mediaQuery.size.height * 0.02),
-              // State Field (Read-only)
-              _buildTextField(
-                'State',
-                _stateController,
-                mediaQuery,
-                readOnly: true,
-                icon: Icons.map_outlined,
-              ),
-              SizedBox(height: mediaQuery.size.height * 0.025),
-              // Action Buttons
-              _buildActionButtons(context, mediaQuery),
-              SizedBox(height: mediaQuery.size.height * 0.025),
-              // Ad Banner
-              Center(child: BannerAdWidget()),
-            ],
+    final screenWidth = mediaQuery.size.width;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: isHindiNotifier,
+      builder: (context, isHindi, _) {
+        return Dialog(
+          insetPadding: EdgeInsets.all(screenWidth * 0.05),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
           ),
-        ),
-      ),
+          backgroundColor: isDark ? const Color(0xFF1A1A2E) : surface,
+          elevation: 8,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: EdgeInsets.all(screenWidth * 0.06),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Header with Icon
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [primaryColor, primaryColor.withOpacity(0.7)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryColor.withOpacity(0.3),
+                            blurRadius: 24,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.location_on_outlined,
+                        color: colorScheme.onPrimary,
+                        size: 30,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: mediaQuery.size.height * 0.02),
+
+                  // Title
+                  Text(
+                    _t('Add Address', 'पता जोड़ें'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: screenWidth * 0.055,
+                      color: isDark ? Colors.white : onSurface,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  SizedBox(height: mediaQuery.size.height * 0.005),
+
+                  Text(
+                    _t(
+                      'Enter your location details',
+                      'अपना स्थान विवरण दर्ज करें',
+                    ),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.035,
+                      color: isDark ? Colors.grey[400] : onSurfaceVariant,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  SizedBox(height: mediaQuery.size.height * 0.025),
+
+                  // Error Message
+                  if (_errorMessage.isNotEmpty)
+                    Container(
+                      padding: EdgeInsets.all(screenWidth * 0.03),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.red.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            color: Colors.red,
+                            size: 20,
+                          ),
+                          SizedBox(width: screenWidth * 0.02),
+                          Expanded(
+                            child: Text(
+                              _errorMessage,
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: screenWidth * 0.035,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (_errorMessage.isNotEmpty)
+                    SizedBox(height: mediaQuery.size.height * 0.02),
+
+                  // Village Field
+                  _buildTextField(
+                    _t('Village', 'गाँव'),
+                    _villageController,
+                    mediaQuery,
+                    icon: Icons.house_outlined,
+                    primaryColor: primaryColor,
+                    isDark: isDark,
+                  ),
+                  SizedBox(height: mediaQuery.size.height * 0.015),
+
+                  // Pincode Field
+                  _buildPincodeField(mediaQuery, primaryColor, isDark),
+                  SizedBox(height: mediaQuery.size.height * 0.015),
+
+                  // Post Office Dropdown
+                  _buildPostDropdown(mediaQuery, primaryColor, isDark),
+                  SizedBox(height: mediaQuery.size.height * 0.015),
+
+                  // District Field (Read-only)
+                  _buildTextField(
+                    _t('District', 'जिला'),
+                    _districtController,
+                    mediaQuery,
+                    readOnly: true,
+                    icon: Icons.location_city_outlined,
+                    primaryColor: primaryColor,
+                    isDark: isDark,
+                  ),
+                  SizedBox(height: mediaQuery.size.height * 0.015),
+
+                  // State Field (Read-only)
+                  _buildTextField(
+                    _t('State', 'राज्य'),
+                    _stateController,
+                    mediaQuery,
+                    readOnly: true,
+                    icon: Icons.map_outlined,
+                    primaryColor: primaryColor,
+                    isDark: isDark,
+                  ),
+                  SizedBox(height: mediaQuery.size.height * 0.025),
+
+                  // Action Buttons
+                  _buildActionButtons(
+                    context,
+                    mediaQuery,
+                    primaryColor,
+                    isDark,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -423,37 +498,48 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
     MediaQueryData mediaQuery, {
     bool readOnly = false,
     IconData? icon,
+    required Color primaryColor,
+    required bool isDark,
   }) {
-    final isDark = Theme.of(context).brightness != Brightness.dark;
     final screenWidth = mediaQuery.size.width;
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[800] : Colors.grey[50],
+        color: isDark ? const Color(0xFF252540) : const Color(0xFFF8FAFD),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+          color:
+              isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFE8ECF3),
           width: 1.5,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.1 : 0.03),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: TextField(
         controller: controller,
         readOnly: readOnly,
         style: TextStyle(
           fontSize: screenWidth * 0.04,
-          color: isDark ? Colors.white : Colors.grey[900],
+          color: isDark ? Colors.white : const Color(0xFF172033),
+          fontWeight: FontWeight.w500,
         ),
         decoration: InputDecoration(
           labelText: label,
           labelStyle: TextStyle(
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
+            color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
             fontSize: screenWidth * 0.035,
+            fontWeight: FontWeight.w600,
           ),
           prefixIcon:
               icon != null
                   ? Icon(
                     icon,
-                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                    color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
                     size: 22,
                   )
                   : null,
@@ -462,23 +548,37 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
             horizontal: screenWidth * 0.04,
             vertical: mediaQuery.size.height * 0.018,
           ),
+          focusedBorder: InputBorder.none,
+          enabledBorder: InputBorder.none,
         ),
+        cursorColor: primaryColor,
       ),
     );
   }
 
-  Widget _buildPincodeField(MediaQueryData mediaQuery) {
-    final isDark = Theme.of(context).brightness != Brightness.dark;
+  Widget _buildPincodeField(
+    MediaQueryData mediaQuery,
+    Color primaryColor,
+    bool isDark,
+  ) {
     final screenWidth = mediaQuery.size.width;
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[800] : Colors.grey[50],
+        color: isDark ? const Color(0xFF252540) : const Color(0xFFF8FAFD),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+          color:
+              isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFE8ECF3),
           width: 1.5,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.1 : 0.03),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: TextField(
         controller: _pincodeController,
@@ -487,17 +587,19 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
         maxLength: 6,
         style: TextStyle(
           fontSize: screenWidth * 0.04,
-          color: isDark ? Colors.white : Colors.grey[900],
+          color: isDark ? Colors.white : const Color(0xFF172033),
+          fontWeight: FontWeight.w500,
         ),
         decoration: InputDecoration(
-          labelText: 'Pincode',
+          labelText: _t('Pincode', 'पिनकोड'),
           labelStyle: TextStyle(
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
+            color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
             fontSize: screenWidth * 0.035,
+            fontWeight: FontWeight.w600,
           ),
           prefixIcon: Icon(
             Icons.pin_drop_outlined,
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
+            color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
             size: 22,
           ),
           counterText: '',
@@ -510,7 +612,7 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
                       height: screenWidth * 0.05,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.5,
-                        color: Colors.blue,
+                        color: primaryColor,
                       ),
                     ),
                   )
@@ -520,7 +622,10 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
             horizontal: screenWidth * 0.04,
             vertical: mediaQuery.size.height * 0.018,
           ),
+          focusedBorder: InputBorder.none,
+          enabledBorder: InputBorder.none,
         ),
+        cursorColor: primaryColor,
         onChanged: (value) {
           if (value.length == 6) {
             _fetchAddressByPincode(value);
@@ -530,35 +635,48 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
     );
   }
 
-  Widget _buildPostDropdown(MediaQueryData mediaQuery) {
-    final isDark = Theme.of(context).brightness != Brightness.dark;
+  Widget _buildPostDropdown(
+    MediaQueryData mediaQuery,
+    Color primaryColor,
+    bool isDark,
+  ) {
     final screenWidth = mediaQuery.size.width;
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[800] : Colors.grey[50],
+        color: isDark ? const Color(0xFF252540) : const Color(0xFFF8FAFD),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? Colors.grey[700]! : Colors.grey[200]!,
+          color:
+              isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFE8ECF3),
           width: 1.5,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.1 : 0.03),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: DropdownButtonFormField<String>(
         value: _selectedPost,
-        dropdownColor: isDark ? Colors.grey[800] : Colors.white,
+        dropdownColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
         style: TextStyle(
           fontSize: screenWidth * 0.04,
-          color: isDark ? Colors.white : Colors.grey[900],
+          color: isDark ? Colors.white : const Color(0xFF172033),
+          fontWeight: FontWeight.w500,
         ),
         decoration: InputDecoration(
-          labelText: 'Post Office',
+          labelText: _t('Post Office', 'पोस्ट ऑफिस'),
           labelStyle: TextStyle(
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
+            color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
             fontSize: screenWidth * 0.035,
+            fontWeight: FontWeight.w600,
           ),
           prefixIcon: Icon(
             Icons.local_post_office_outlined,
-            color: isDark ? Colors.grey[400] : Colors.grey[600],
+            color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
             size: 22,
           ),
           border: InputBorder.none,
@@ -566,10 +684,12 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
             horizontal: screenWidth * 0.04,
             vertical: mediaQuery.size.height * 0.01,
           ),
+          focusedBorder: InputBorder.none,
+          enabledBorder: InputBorder.none,
         ),
         icon: Icon(
           Icons.keyboard_arrow_down_rounded,
-          color: isDark ? Colors.grey[400] : Colors.grey[600],
+          color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
         ),
         items:
             _postOffices
@@ -578,7 +698,10 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
                     value: post,
                     child: Text(
                       post,
-                      style: TextStyle(fontSize: screenWidth * 0.04),
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.04,
+                        color: isDark ? Colors.white : const Color(0xFF172033),
+                      ),
                     ),
                   ),
                 )
@@ -588,8 +711,12 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
     );
   }
 
-  Widget _buildActionButtons(BuildContext context, MediaQueryData mediaQuery) {
-    final isDark = Theme.of(context).brightness != Brightness.dark;
+  Widget _buildActionButtons(
+    BuildContext context,
+    MediaQueryData mediaQuery,
+    Color primaryColor,
+    bool isDark,
+  ) {
     final screenWidth = mediaQuery.size.width;
 
     return Row(
@@ -597,25 +724,28 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
         Expanded(
           child: TextButton(
             style: TextButton.styleFrom(
-              foregroundColor: Colors.grey[600],
+              foregroundColor: isDark ? Colors.grey[400] : Colors.grey[700],
               padding: EdgeInsets.symmetric(
                 vertical: mediaQuery.size.height * 0.018,
               ),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 side: BorderSide(
-                  color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
+                  color:
+                      isDark
+                          ? Colors.white.withOpacity(0.1)
+                          : const Color(0xFFE8ECF3),
                   width: 1.5,
                 ),
               ),
             ),
             onPressed: _isLoading ? null : () => Navigator.pop(context),
             child: Text(
-              'Cancel',
+              _t('Cancel', 'रद्द करें'),
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: screenWidth * 0.04,
-                color: isDark ? Colors.grey[400] : Colors.grey[700],
+                color: isDark ? Colors.grey[400] : const Color(0xFF6B7280),
               ),
             ),
           ),
@@ -625,16 +755,16 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
           child: ElevatedButton(
             onPressed: _isLoading ? null : _submitAddress,
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
+              backgroundColor: primaryColor,
               foregroundColor: Colors.white,
               padding: EdgeInsets.symmetric(
                 vertical: mediaQuery.size.height * 0.018,
               ),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
               ),
-              elevation: 2,
-              shadowColor: Colors.blue.withOpacity(0.3),
+              elevation: 0,
+              shadowColor: primaryColor.withOpacity(0.3),
             ),
             child:
                 _isLoading
@@ -652,7 +782,7 @@ class _AddAddressDialogState extends State<AddAddressDialog> {
                         const Icon(Icons.check_circle_outline, size: 20),
                         const SizedBox(width: 8),
                         Text(
-                          'Submit',
+                          _t('Submit', 'सबमिट करें'),
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: screenWidth * 0.04,
