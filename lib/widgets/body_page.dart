@@ -7,10 +7,12 @@ import 'package:app_aapkakaam/models/data_model.dart';
 import 'package:app_aapkakaam/widgets/booking_date_selection.dart';
 import 'package:app_aapkakaam/widgets/address_page.dart';
 import 'package:app_aapkakaam/widgets/wage_rate_page.dart';
+import 'package:app_aapkakaam/widgets/version_checker.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-
+import 'package:app_aapkakaam/models/maintenance.dart';
+// import 'package:app_aapkakaam/data/notifiers.dart';
 // Service Data Structure with Emojis
 class ServiceItem {
   final String title;
@@ -1120,90 +1122,145 @@ class _BodyPageState extends State<BodyPage>
     return serviceData[_selectedCategory - 1].services;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
+ @override
+Widget build(BuildContext context) {
+  super.build(context);
 
-    return MultiNotifierBuilder(
-      notifiers: [
-        isDarkThemeNotifier,
-        isAddressAvailable,
-        isWageRateAvailable,
-        isVendor,
-        isHindiNotifier,
-      ],
-      builder: (context, values, child) {
-        final isDarkTheme = values[0] as bool;
-        final isAddress = values[1] as bool;
-        final isWageRate = values[2] as bool;
-        final vendorMode = values[3] as bool;
-        final isHindi = values[4] as bool;
+  return MultiNotifierBuilder(
+    notifiers: [
+      isDarkThemeNotifier,
+      isAddressAvailable,
+      isWageRateAvailable,
+      isVendor,
+      isHindiNotifier,
+      maintenanceDataNotifier, // Maintenance data listener
+    ],
+    builder: (context, values, child) {
+      final isDarkTheme = values[0] as bool;
+      final isAddress = values[1] as bool;
+      final isWageRate = values[2] as bool;
+      final vendorMode = values[3] as bool;
+      final isHindi = values[4] as bool;
+      final maintenanceData = values[5] as MaintenanceData?;
 
-        final theme = Theme.of(context);
-        final colorScheme = theme.colorScheme;
-        final primaryColor = colorScheme.primary;
-        final primaryContainer = colorScheme.primaryContainer;
-        final surface = colorScheme.surface;
-        final background = colorScheme.background;
-        final onSurface = colorScheme.onSurface;
+      final theme = Theme.of(context);
+      final colorScheme = theme.colorScheme;
 
-        return ColoredBox(
-          color:
-              isDarkTheme ? const Color(0xFF0B1020) : const Color(0xFFF7F9FC),
-          child: SafeArea(
-            bottom: false,
-            child: RefreshIndicator(
-              color: primaryColor,
-              onRefresh: loadUserData,
-              child: CustomScrollView(
-                controller: _scrollController,
-                physics: const BouncingScrollPhysics(
-                  parent: AlwaysScrollableScrollPhysics(),
-                ),
-                slivers: [
-                  if (!isAddress || (vendorMode && !isWageRate))
-                    SliverPadding(
-                      padding: EdgeInsets.fromLTRB(14.w, 10.h, 14.w, 0),
-                      sliver: SliverToBoxAdapter(
-                        child: _buildWarningCards(
-                          vendorMode,
-                          isWageRate,
-                          isAddress,
-                          isDarkTheme,
-                          primaryColor,
-                        ),
-                      ),
+      final primaryColor = colorScheme.primary;
+      final primaryContainer = colorScheme.primaryContainer;
+      final surface = colorScheme.surface;
+      final onSurface = colorScheme.onSurface;
+
+      return ColoredBox(
+        color: isDarkTheme
+            ? const Color(0xFF0B1020)
+            : const Color(0xFFF7F9FC),
+
+        child: SafeArea(
+          bottom: false,
+
+          child: RefreshIndicator(
+            color: primaryColor,
+            onRefresh: loadUserData,
+
+            child: CustomScrollView(
+              controller: _scrollController,
+
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+
+              slivers: [
+                // ==========================================
+                // MAINTENANCE BANNER
+                // ==========================================
+                if (maintenanceData != null &&
+                    maintenanceData.showBanner)
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      14.w,
+                      10.h,
+                      14.w,
+                      0,
                     ),
 
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 0),
                     sliver: SliverToBoxAdapter(
-                      child: _buildCategoryChips(
-                        isDarkTheme,
-                        primaryColor,
-                        onSurface,
+                      child: HomeMaintenanceBanner(
+                        data: maintenanceData,
                       ),
                     ),
                   ),
 
+                // ==========================================
+                // WARNING CARDS
+                // ==========================================
+                if (!isAddress || (vendorMode && !isWageRate))
                   SliverPadding(
-                    padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 20.h),
-                    sliver: _buildServiceContent(
+                    padding: EdgeInsets.fromLTRB(
+                      14.w,
+                      10.h,
+                      14.w,
+                      0,
+                    ),
+
+                    sliver: SliverToBoxAdapter(
+                      child: _buildWarningCards(
+                        vendorMode,
+                        isWageRate,
+                        isAddress,
+                        isDarkTheme,
+                        primaryColor,
+                      ),
+                    ),
+                  ),
+
+                // ==========================================
+                // CATEGORY CHIPS
+                // ==========================================
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(
+                    14.w,
+                    14.h,
+                    14.w,
+                    0,
+                  ),
+
+                  sliver: SliverToBoxAdapter(
+                    child: _buildCategoryChips(
                       isDarkTheme,
                       primaryColor,
-                      primaryContainer,
-                      surface,
                       onSurface,
                     ),
                   ),
-                ],
-              ),
+                ),
+
+                // ==========================================
+                // SERVICES
+                // ==========================================
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(
+                    14.w,
+                    14.h,
+                    14.w,
+                    20.h,
+                  ),
+
+                  sliver: _buildServiceContent(
+                    isDarkTheme,
+                    primaryColor,
+                    primaryContainer,
+                    surface,
+                    onSurface,
+                  ),
+                ),
+              ],
             ),
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   // ============================================================
   // Language Helper
@@ -2507,7 +2564,182 @@ class _BodyPageState extends State<BodyPage>
     );
   }
 }
+class HomeMaintenanceBanner extends StatelessWidget {
+  final MaintenanceData data;
 
+  const HomeMaintenanceBanner({
+    super.key,
+    required this.data,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark;
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: isHindiNotifier,
+      builder: (context, isHindi, child) {
+        final title =
+            isHindi && data.hindiTitle.isNotEmpty
+                ? data.hindiTitle
+                : data.title;
+
+        final subtitle =
+            isHindi && data.hindiSubtitle.isNotEmpty
+                ? data.hindiSubtitle
+                : data.subtitle;
+
+        final message =
+            isHindi && data.hindiMessage.isNotEmpty
+                ? data.hindiMessage
+                : data.message;
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+
+          decoration: BoxDecoration(
+            color: isDark
+                ? const Color(0xFF2B210F)
+                : const Color(0xFFFF4D6),
+
+            borderRadius: BorderRadius.circular(16),
+
+            border: Border.all(
+              color: Colors.orange.withOpacity(0.35),
+            ),
+          ),
+
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.construction_rounded,
+                  color: Colors.orange,
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title.isNotEmpty
+                          ? title
+                          : isHindi
+                              ? 'रखरखाव सूचना'
+                              : 'Maintenance Notice',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: isDark
+                            ? Colors.white
+                            : Colors.black87,
+                      ),
+                    ),
+
+                    if (subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? Colors.orange.shade100
+                              : Colors.orange.shade900,
+                        ),
+                      ),
+                    ],
+
+                    if (message.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        message,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.45,
+                          color: isDark
+                              ? Colors.white70
+                              : Colors.black54,
+                        ),
+                      ),
+                    ],
+
+                    if (data.endAt != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.schedule_rounded,
+                            size: 14,
+                            color: Colors.orange,
+                          ),
+
+                          const SizedBox(width: 5),
+
+                          Expanded(
+                            child: Text(
+                              isHindi
+                                  ? 'अनुमानित समाप्ति: '
+                                      '${_formatDate(data.endAt!)}'
+                                  : 'Expected completion: '
+                                      '${_formatDate(data.endAt!)}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatDate(DateTime dateTime) {
+    final day =
+        dateTime.day.toString().padLeft(2, '0');
+
+    final month =
+        dateTime.month.toString().padLeft(2, '0');
+
+    final year = dateTime.year;
+
+    final hour = dateTime.hour == 0
+        ? 12
+        : dateTime.hour > 12
+            ? dateTime.hour - 12
+            : dateTime.hour;
+
+    final minute =
+        dateTime.minute.toString().padLeft(2, '0');
+
+    final period =
+        dateTime.hour >= 12 ? 'PM' : 'AM';
+
+    return '$day/$month/$year, '
+        '$hour:$minute $period';
+  }
+}
 // ============================================================
 // MultiNotifierBuilder
 // ============================================================

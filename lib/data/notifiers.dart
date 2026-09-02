@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-
-// ValueNotifier :- hold a single value and notify its listeners when the value changes
-// ValueListenableBuilder :- listen to data (setState not required)
+import 'package:app_aapkakaam/models/maintenance.dart';
 
 ValueNotifier<int> selectedPageNotifier = ValueNotifier<int>(0);
 ValueNotifier<int> bookingStatusNotifier = ValueNotifier<int>(1);
@@ -40,3 +38,5 @@ final ValueNotifier<String?> pendingNotificationBookingIdNotifier =
 final ValueNotifier<Map<String, dynamic>?> pendingNotificationDataNotifier =
     ValueNotifier<Map<String, dynamic>?>(null);
 final ValueNotifier<bool> isHindiNotifier = ValueNotifier<bool>(true);
+final ValueNotifier<MaintenanceData?> maintenanceDataNotifier =
+    ValueNotifier<MaintenanceData?>(null);

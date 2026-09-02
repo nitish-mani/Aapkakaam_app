@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
+import 'package:app_aapkakaam/models/maintenance.dart';
 
 /// ================================================================
 /// SERVER CONTROLLED VERSION + MAINTENANCE CHECKER
@@ -54,7 +55,7 @@ class VersionChecker extends StatefulWidget {
     required this.child,
     required this.apiBaseUrl,
     this.checkCooldown = const Duration(minutes: 30),
-    this.maintenanceCheckInterval = const Duration(minutes: 1),
+    this.maintenanceCheckInterval = const Duration(minutes: 10),
   });
 
   @override
@@ -107,9 +108,10 @@ class _VersionCheckerState extends State<VersionChecker>
   Future<void> _initializeChecks() async {
     await _checkMaintenance(reason: 'app_start', forceUpdate: true);
 
+    _startMaintenancePolling();
+
     await _checkVersion(reason: 'app_start', ignoreCooldown: true);
 
-    _startMaintenancePolling();
   }
 
   /// ================================================================
@@ -136,12 +138,20 @@ class _VersionCheckerState extends State<VersionChecker>
   /// ================================================================
 
   void _startMaintenancePolling() {
-    _maintenanceTimer?.cancel();
+  _maintenanceTimer?.cancel();
 
-    _maintenanceTimer = Timer.periodic(widget.maintenanceCheckInterval, (_) {
-      _checkMaintenance(reason: 'automatic_poll', forceUpdate: true);
-    });
-  }
+  _maintenanceTimer = Timer.periodic(
+    widget.maintenanceCheckInterval,
+    (_) {
+      if (!mounted) return;
+
+      _checkMaintenance(
+        reason: 'automatic_poll',
+        forceUpdate: true,
+      );
+    },
+  );
+}
 
   /// ================================================================
   /// CHECK MAINTENANCE
@@ -150,7 +160,7 @@ class _VersionCheckerState extends State<VersionChecker>
   Future<void> _checkMaintenance({
     required String reason,
     bool forceUpdate = false,
-  }) async {
+    }) async {
     if (_checkingMaintenance) {
       debugPrint('Maintenance check skipped: already checking');
       return;
@@ -197,7 +207,6 @@ class _VersionCheckerState extends State<VersionChecker>
         debugPrint('Maintenance object missing');
         return;
       }
-
       final maintenance = MaintenanceData.fromJson(
         Map<String, dynamic>.from(maintenanceJson),
       );
@@ -208,30 +217,41 @@ class _VersionCheckerState extends State<VersionChecker>
 
       final wasActive = _maintenanceActive;
 
-      setState(() {
-        _maintenanceActive = maintenance.active;
-        _maintenanceData = maintenance;
+        setState(() {
+      _maintenanceActive = maintenance.active;
+      _maintenanceData = maintenance;
       });
 
-      debugPrint('Maintenance active=${maintenance.active}');
+     maintenanceDataNotifier.value = maintenance;
 
-      if (wasActive && !maintenance.active) {
-        debugPrint('Maintenance finished. Application restored.');
-      }
+          debugPrint(
+      'Maintenance state: '
+      'active=${maintenance.active}, '
+      'showBanner=${maintenance.showBanner}, '
+      'showMaintenancePage=${maintenance.showMaintenancePage}',
+      );
 
-      if (!wasActive && maintenance.active) {
-        debugPrint('Maintenance started. Showing maintenance page.');
-      }
-    } catch (error) {
-      debugPrint('Maintenance check failed ($reason): $error');
 
-      /// Fail open.
-      ///
-      /// Network/API failure must not automatically
-      /// lock the user out of the application.
-    } finally {
-      _checkingMaintenance = false;
-    }
+
+          debugPrint('Maintenance active=${maintenance.active}');
+
+          if (wasActive && !maintenance.active) {
+            debugPrint('Maintenance finished. Application restored.');
+          }
+
+          if (!wasActive && maintenance.active) {
+            debugPrint('Maintenance started. Showing maintenance page.');
+          }
+        } catch (error) {
+          debugPrint('Maintenance check failed ($reason): $error');
+
+          /// Fail open.
+          ///
+          /// Network/API failure must not automatically
+          /// lock the user out of the application.
+        } finally {
+          _checkingMaintenance = false;
+        }
   }
 
   /// ================================================================
@@ -500,18 +520,53 @@ class _VersionCheckerState extends State<VersionChecker>
   /// BUILD
   /// ================================================================
 
-  @override
-  Widget build(BuildContext context) {
-    /// Maintenance has highest priority.
-    if (_maintenanceActive) {
-      return _MaintenancePage(
-        data: _maintenanceData,
-        onRetry: _retryMaintenance,
-      );
-    }
+  
+@override
+Widget build(BuildContext context) {
+  final maintenanceData = _maintenanceData;
 
-    return widget.child;
+  // ==========================================
+  // FULL SCREEN MAINTENANCE PAGE
+  // ==========================================
+
+  if (_maintenanceActive &&
+      maintenanceData != null &&
+      maintenanceData.showMaintenancePage) {
+    return _MaintenancePage(
+      data: maintenanceData,
+      onRetry: _retryMaintenance,
+    );
   }
+
+  // ==========================================
+  // NORMAL APPLICATION
+  // ==========================================
+
+  return Stack(
+    children: [
+      // Main application
+      Positioned.fill(
+        child: widget.child,
+      ),
+
+      // ==========================================
+      // MAINTENANCE BANNER
+      // ==========================================
+
+      if (_maintenanceActive &&
+          maintenanceData != null &&
+          maintenanceData.showBanner)
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: _MaintenanceBanner(
+            data: maintenanceData,
+          ),
+        ),
+    ],
+  );
+}
 }
 
 /// ================================================================
@@ -567,68 +622,226 @@ class VersionCheckResult {
   }
 }
 
-/// ================================================================
-/// MAINTENANCE DATA
-/// ================================================================
 
-class MaintenanceData {
-  final bool active;
+////// ============banner===========
 
-  final String title;
-  final String subtitle;
-  final String message;
+class _MaintenanceBanner extends StatelessWidget {
+  final MaintenanceData data;
 
-  final String hindiTitle;
-  final String hindiSubtitle;
-  final String hindiMessage;
-
-  final DateTime? startAt;
-  final DateTime? endAt;
-
-  const MaintenanceData({
-    required this.active,
-    required this.title,
-    required this.subtitle,
-    required this.message,
-    required this.hindiTitle,
-    required this.hindiSubtitle,
-    required this.hindiMessage,
-    this.startAt,
-    this.endAt,
+  const _MaintenanceBanner({
+    required this.data,
   });
 
-  factory MaintenanceData.fromJson(Map<String, dynamic> json) {
-    return MaintenanceData(
-      active: json['active'] == true,
+  @override
+  Widget build(BuildContext context) {
+    final isDark =
+        Theme.of(context).brightness == Brightness.dark;
 
-      title: json['title']?.toString().trim() ?? '',
+    return SafeArea(
+      bottom: false,
+      child: ValueListenableBuilder<bool>(
+        valueListenable: isHindiNotifier,
 
-      subtitle: json['subtitle']?.toString().trim() ?? '',
+        builder: (context, isHindi, _) {
+          final title =
+              isHindi && data.hindiTitle.isNotEmpty
+                  ? data.hindiTitle
+                  : data.title;
 
-      message: json['message']?.toString().trim() ?? '',
+          final subtitle =
+              isHindi && data.hindiSubtitle.isNotEmpty
+                  ? data.hindiSubtitle
+                  : data.subtitle;
 
-      hindiTitle: json['hindiTitle']?.toString().trim() ?? '',
+          final message =
+              isHindi && data.hindiMessage.isNotEmpty
+                  ? data.hindiMessage
+                  : data.message;
 
-      hindiSubtitle: json['hindiSubtitle']?.toString().trim() ?? '',
+          return Material(
+            color: Colors.transparent,
 
-      hindiMessage: json['hindiMessage']?.toString().trim() ?? '',
+            child: Container(
+              width: double.infinity,
 
-      // Backend uses startDateTime
-      startAt: _parseDate(json['startDateTime'] ?? json['startAt']),
+              padding: const EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                12,
+              ),
 
-      // Backend uses endDateTime
-      endAt: _parseDate(json['endDateTime'] ?? json['endAt']),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF2B210F)
+                    : const Color(0xFFFFF4D6),
+
+                border: Border(
+                  bottom: BorderSide(
+                    color: Colors.orange.withOpacity(0.45),
+                  ),
+                ),
+
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(
+                      isDark ? 0.25 : 0.08,
+                    ),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+
+              child: Row(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.15),
+                      borderRadius:
+                          BorderRadius.circular(12),
+                    ),
+
+                    child: const Icon(
+                      Icons.construction_rounded,
+                      color: Colors.orange,
+                      size: 21,
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+
+                      children: [
+                        Text(
+                          title.isNotEmpty
+                              ? title
+                              : isHindi
+                                  ? 'रखरखाव सूचना'
+                                  : 'Maintenance Notice',
+
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: isDark
+                                ? Colors.white
+                                : Colors.black87,
+                          ),
+                        ),
+
+                        if (subtitle.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+
+                          Text(
+                            subtitle,
+
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight:
+                                  FontWeight.w600,
+                              color: isDark
+                                  ? Colors.orange.shade100
+                                  : Colors.orange.shade900,
+                            ),
+                          ),
+                        ],
+
+                        if (message.isNotEmpty) ...[
+                          const SizedBox(height: 5),
+
+                          Text(
+                            message,
+
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.4,
+                              color: isDark
+                                  ? Colors.white70
+                                  : Colors.black54,
+                            ),
+                          ),
+                        ],
+
+                        if (data.endAt != null) ...[
+                          const SizedBox(height: 7),
+
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.schedule_rounded,
+                                size: 14,
+                                color: isDark
+                                    ? Colors.orange.shade200
+                                    : Colors.orange.shade800,
+                              ),
+
+                              const SizedBox(width: 5),
+
+                              Expanded(
+                                child: Text(
+                                  isHindi
+                                      ? 'अनुमानित समाप्ति: '
+                                            '${_formatDateTime(data.endAt!)}'
+                                      : 'Expected completion: '
+                                            '${_formatDateTime(data.endAt!)}',
+
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight:
+                                        FontWeight.w700,
+                                    color: isDark
+                                        ? Colors.orange.shade200
+                                        : Colors.orange.shade800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
-  static DateTime? _parseDate(dynamic value) {
-    if (value == null) {
-      return null;
-    }
 
-    return DateTime.tryParse(value.toString())?.toLocal();
+  String _formatDateTime(DateTime dateTime) {
+    final day = dateTime.day.toString().padLeft(2, '0');
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final year = dateTime.year;
+
+    final hour =
+        dateTime.hour > 12
+            ? dateTime.hour - 12
+            : dateTime.hour == 0
+            ? 12
+            : dateTime.hour;
+
+    final minute =
+        dateTime.minute.toString().padLeft(2, '0');
+
+    final period =
+        dateTime.hour >= 12 ? 'PM' : 'AM';
+
+    return '$day/$month/$year, '
+        '$hour:$minute $period';
   }
 }
-
 /// ================================================================
 /// UPDATE DIALOG
 /// ================================================================
