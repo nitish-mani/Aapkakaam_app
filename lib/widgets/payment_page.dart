@@ -464,7 +464,7 @@ class _PaymentPageState extends State<PaymentPage> {
       });
 
       var options = {
-        'key': 'rzp_test_THfazRmCIeemjt',
+        'key': 'rzp_live_ymm3SOr7DUIJiM',
         'amount': order['amount'].toString(),
         'currency': order['currency'] ?? 'INR',
         'name': 'Aapkakaam',
