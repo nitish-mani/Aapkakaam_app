@@ -496,274 +496,598 @@ class _SignupPageState extends State<SignupPage> {
   // VENDOR SIGNUP WITH INLINE PAYMENT
   // ============================================================
 
-  Future<void> _initiateVendorPayment() async {
+  
+Future<void> _initiateVendorPayment() async {
+  // ==========================================================
+  // VALIDATION - NAME
+  // ==========================================================
+final name = _nameController.text.trim();
+
+if (name.isEmpty) {
+  _showSnackBar(
+    _t(
+      'Please enter your name',
+      'कृपया अपना नाम दर्ज करें',
+    ),
+    errorRed,
+  );
+  return;
+}
+
+// ==========================================================
+// VALIDATION - MOBILE NUMBER
+// मोबाइल नंबर की जाँच
+// ==========================================================
+
+final mobileText = _mobileController.text.trim();
+
+if (mobileText.length != 10) {
+  _showSnackBar(
+    _t(
+      'Please enter a valid mobile number',
+      'कृपया सही मोबाइल नंबर डालें',
+    ),
+    errorRed,
+  );
+  return;
+}
+
+final phoneNumber = int.tryParse(mobileText);
+
+if (phoneNumber == null) {
+  _showSnackBar(
+    _t(
+      'Please enter a valid mobile number',
+      'कृपया सही मोबाइल नंबर डालें',
+    ),
+    errorRed,
+  );
+  return;
+}
+
+// ==========================================================
+// VALIDATION - PASSWORD
+// पासवर्ड की जाँच
+// ==========================================================
+
+if (_passwordController.text.length < 6) {
+  _showSnackBar(
+    _t(
+      'Password must be at least 6 characters',
+      'पासवर्ड कम से कम 6 अक्षरों का होना चाहिए',
+    ),
+    errorRed,
+  );
+  return;
+}
+
+if (_passwordController.text != _rePasswordController.text) {
+  _showSnackBar(
+    _t(
+      'Passwords do not match',
+      'पासवर्ड मैच नहीं हो रहा है',
+    ),
+    errorRed,
+  );
+  return;
+}
+// ==========================================================
+// VALIDATION - GENDER
+// लिंग की जाँच
+// ==========================================================
+
+if (_selectedGender == null) {
+  _showSnackBar(
+    _t(
+      'Please select your gender',
+      'कृपया अपना लिंग चुनें',
+    ),
+    errorRed,
+  );
+  return;
+}
+
+// ==========================================================
+// VALIDATION - JOBS
+// काम (जॉब) की जाँच
+// ==========================================================
+
+if (_selectedProfessions.isEmpty) {
+  _showSnackBar(
+    _t(
+      'Please select at least one job',
+      'कृपया कम से कम एक काम चुनें',
+    ),
+    errorRed,
+  );
+  return;
+}
+
+if (_selectedProfessions.length > maxJobs) {
+  _showSnackBar(
+    _t(
+      'You can select a maximum of $maxJobs jobs',
+      'आप अधिकतम $maxJobs काम चुन सकते हैं',
+    ),
+    errorRed,
+  );
+  return;
+}
+
+// ==========================================================
+// VALIDATION - EXPERIENCE
+// अनुभव की जाँच
+// ==========================================================
+
+final experienceText = _experienceController.text.trim();
+
+if (experienceText.isEmpty) {
+  _showSnackBar(
+    _t(
+      'Please enter your experience',
+      'कृपया अपना अनुभव दर्ज करें',
+    ),
+    errorRed,
+  );
+  return;
+}
+
+final experience = int.tryParse(experienceText);
+
+if (experience == null || experience < 0) {
+  _showSnackBar(
+    _t(
+      'Please enter a valid experience',
+      'कृपया वैध अनुभव दर्ज करें',
+    ),
+    errorRed,
+  );
+  return;
+}
+
+// ==========================================================
+// VALIDATION - TERMS & CONDITIONS
+// नियम व शर्तों की जाँच
+// ==========================================================
+
+if (!_agreedToTnC) {
+  _showSnackBar(
+    _t(
+      'You must accept the Terms & Conditions and Privacy Policy',
+      'आपको नियम व शर्तें और गोपनीयता नीति स्वीकार करनी होगी',
+    ),
+    errorRed,
+  );
+  return;
+}
+
+  // ==========================================================
+  // START LOADING
+  // ==========================================================
+
+  if (mounted) {
+    setState(() {
+      isLoading = true;
+    });
+  }
+
+  try {
     // ==========================================================
-    // VALIDATION
+    // JOB TYPES
     // ==========================================================
 
-    if (_nameController.text.trim().isEmpty) {
-      _showSnackBar('Please enter your name', errorRed);
-      return;
-    }
+    final jobTypesForBackend =
+        _selectedProfessions.map(_jobTypeForBackend).toList();
 
-    if (_mobileController.text.length != 10) {
-      _showSnackBar('Please enter a valid mobile number', errorRed);
-      return;
-    }
+    // ==========================================================
+    // API URL
+    // ==========================================================
 
-    if (_passwordController.text.length < 6) {
-      _showSnackBar('Password must be at least 6 characters', errorRed);
-      return;
-    }
+    final url = "$_serverUrl/vendor/signup/create-order";
 
-    if (_selectedGender == null) {
-      _showSnackBar('Please select your gender', errorRed);
-      return;
-    }
+    // ==========================================================
+    // REQUEST BODY
+    // ==========================================================
 
-    if (_selectedProfessions.isEmpty) {
-      _showSnackBar(
-        _t('Please select at least one job', 'कृपया कम से कम एक काम चुनें'),
-        errorRed,
+    final requestBody = {
+      "name": name,
+
+      "phoneNo": phoneNumber,
+
+      "password": _passwordController.text,
+
+      "gender": _selectedGender?.toLowerCase(),
+
+      "type": jobTypesForBackend,
+
+      "experience": experience,
+
+      "sharedBy": widget.id ?? "",
+
+      "cd": widget.cd ?? "",
+
+      "validPhoneNoId": otpId1.value,
+
+      "agreedToTnCnP": true,
+
+      // ========================================================
+      // FCM TOKEN
+      // ========================================================
+
+      "fcmToken": fcmToken.value,
+    };
+
+    // ==========================================================
+    // DEBUG REQUEST
+    // ==========================================================
+
+    debugPrint(
+      "══════════════════════════════════════",
+    );
+
+    debugPrint(
+      "Signup API URL: $url",
+    );
+
+    debugPrint(
+      "Signup request body: "
+      "${{
+        ...requestBody,
+        "password": "***",
+      }}",
+    );
+
+    debugPrint(
+      "══════════════════════════════════════",
+    );
+
+    // ==========================================================
+    // CREATE PAYMENT ORDER
+    // ==========================================================
+
+    final response = await http.post(
+      Uri.parse(url),
+
+      headers: {
+        "Content-Type": "application/json",
+      },
+
+      body: jsonEncode(requestBody),
+    );
+
+    // ==========================================================
+    // DEBUG RESPONSE
+    // ==========================================================
+
+    debugPrint(
+      '══════════════════════════════════════',
+    );
+
+    debugPrint(
+      'Signup API status: ${response.statusCode}',
+    );
+
+    debugPrint(
+      'Signup API response: ${response.body}',
+    );
+
+    debugPrint(
+      '══════════════════════════════════════',
+    );
+
+    // ==========================================================
+    // HTTP STATUS VALIDATION
+    // ==========================================================
+
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300) {
+      String errorMessage = 'An error occurred';
+
+      try {
+        final responseData = jsonDecode(response.body);
+
+        if (responseData is Map<String, dynamic>) {
+          errorMessage =
+              responseData['message'] ??
+              responseData['error'] ??
+              errorMessage;
+        }
+      } catch (e) {
+        debugPrint(
+          'Error decoding API error response: $e',
+        );
+      }
+
+      debugPrint(
+        'Signup API error: $errorMessage',
       );
-      return;
+
+      throw Exception(errorMessage);
     }
 
-    if (_selectedProfessions.length > maxJobs) {
-      _showSnackBar(
-        _t(
-          'You can select a maximum of $maxJobs jobs',
-          'आप अधिकतम $maxJobs काम चुन सकते हैं',
-        ),
-        errorRed,
+    // ==========================================================
+    // PARSE RESPONSE
+    // ==========================================================
+
+    final decodedResponse = jsonDecode(response.body);
+
+    if (decodedResponse is! Map<String, dynamic>) {
+      throw Exception(
+        'Invalid response received from server',
       );
-      return;
     }
 
-    if (!_agreedToTnC) {
-      _showSnackBar(
-        'You must accept the Terms & Conditions and Privacy Policy',
-        errorRed,
+    final result = decodedResponse;
+
+    // ==========================================================
+    // CHECK SUCCESS
+    // ==========================================================
+
+    if (result['success'] != true) {
+      throw Exception(
+        result['message'] ??
+            'Unable to create payment order',
       );
+    }
+
+    // ==========================================================
+    // GET PAYMENT ORDER
+    // ==========================================================
+
+    final order = result['order'];
+
+    // ==========================================================
+    // STORE SIGNUP TOKEN
+    // ==========================================================
+
+    _signupToken = result['signupToken'];
+
+    if (_signupToken == null ||
+        _signupToken.toString().isEmpty) {
+      throw Exception(
+        'Signup token was not returned by server',
+      );
+    }
+
+    // ==========================================================
+    // VALIDATE PAYMENT ORDER
+    // ==========================================================
+
+    if (order == null) {
+      throw Exception(
+        'Payment order was not returned by server',
+      );
+    }
+
+    if (order is! Map) {
+      throw Exception(
+        'Invalid payment order received from server',
+      );
+    }
+
+    if (order['id'] == null ||
+        order['id'].toString().isEmpty) {
+      throw Exception(
+        'Payment order ID was not returned by server',
+      );
+    }
+
+    if (order['key'] == null ||
+        order['key'].toString().isEmpty) {
+      throw Exception(
+        'Razorpay key was not returned by server',
+      );
+    }
+
+    // ==========================================================
+    // STORE VENDOR DATA LOCALLY
+    // ==========================================================
+
+    _vendorSignupData = {
+      "token": "",
+
+      "name": name,
+
+      "phoneNo": mobileText,
+
+      "email": "",
+
+      "fcmToken": fcmToken.value,
+    };
+
+    // ==========================================================
+    // STOP LOADING BEFORE RAZORPAY
+    // ==========================================================
+
+    if (mounted) {
+      setState(() {
+        isLoading = false;
+      });
+    }
+
+    // ==========================================================
+    // RAZORPAY OPTIONS
+    // ==========================================================
+
+    final options = {
+      'key': order['key'],
+
+      'amount': order['amount'],
+
+      'currency': order['currency'] ?? 'INR',
+
+      'name': 'Aapkakaam',
+
+      'description': _t(
+        'Vendor Registration Fee ₹$vendorSignupFee',
+        'वेंडर रजिस्ट्रेशन शुल्क ₹$vendorSignupFee',
+      ),
+
+      'order_id': order['id'],
+
+      'prefill': {
+        'contact': mobileText,
+
+        'name': name,
+      },
+
+      'notes': {
+        'purpose': 'vendor_signup',
+
+        'fcmToken': fcmToken.value,
+      },
+
+      'theme': {
+        'color': '#4F46E5',
+      },
+    };
+
+    // ==========================================================
+    // DEBUG RAZORPAY
+    // ==========================================================
+
+    debugPrint(
+      'Opening Razorpay payment...',
+    );
+
+    debugPrint(
+      'Razorpay Order ID: ${order['id']}',
+    );
+
+    debugPrint(
+      'Razorpay Amount: ${order['amount']}',
+    );
+
+    // ==========================================================
+    // INITIALIZE RAZORPAY
+    // ==========================================================
+
+    if (_razorpay == null) {
+      _initRazorpay();
+    }
+
+    // ==========================================================
+    // OPEN RAZORPAY
+    // ==========================================================
+
+    _razorpay!.open(options);
+  } catch (e, stackTrace) {
+    // ==========================================================
+    // ERROR LOGGING
+    // ==========================================================
+
+    debugPrint(
+      '══════════════════════════════════════',
+    );
+
+    debugPrint(
+      'Error during vendor signup: $e',
+    );
+
+    debugPrint(
+      'Stack trace:',
+    );
+
+    debugPrint(
+      stackTrace.toString(),
+    );
+
+    debugPrint(
+      '══════════════════════════════════════',
+    );
+
+    // ==========================================================
+    // STOP LOADING
+    // ==========================================================
+
+    if (!mounted) {
       return;
     }
 
     setState(() {
-      isLoading = true;
+      isLoading = false;
     });
 
-    try {
-      // ==========================================================
-      // GET FCM TOKEN
-      // ==========================================================
+    // ==========================================================
+    // SHOW ERROR
+    // ==========================================================
 
-      // ==========================================================
-      // JOB TYPES
-      // ==========================================================
-
-      final jobTypesForBackend =
-          _selectedProfessions.map(_jobTypeForBackend).toList();
-
-      // ==========================================================
-      // API URL
-      // ==========================================================
-
-      final url = "$_serverUrl/vendor/signup/create-order";
-
-      // ==========================================================
-      // REQUEST BODY
-      // ==========================================================
-
-      final requestBody = {
-        "name": _nameController.text.trim(),
-
-        "phoneNo": int.parse(_mobileController.text.trim()),
-
-        "password": _passwordController.text,
-
-        "gender": _selectedGender?.toLowerCase(),
-
-        "type": jobTypesForBackend,
-
-        "experience": int.parse(_experienceController.text),
-
-        "sharedBy": widget.id ?? "",
-
-        "cd": widget.cd ?? "",
-
-        "validPhoneNoId": otpId1.value,
-
-        "agreedToTnCnP": true,
-
-        // ========================================================
-        // FCM TOKEN
-        // ========================================================
-        "fcmToken": fcmToken.value,
-      };
-
-      debugPrint(
-        "Signup request body: "
-        "${{...requestBody, "password": "***"}}",
-      );
-
-      // ==========================================================
-      // CREATE PAYMENT ORDER
-      // ==========================================================
-
-      final response = await http.post(
-        Uri.parse(url),
-
-        headers: {"Content-Type": "application/json"},
-
-        body: jsonEncode(requestBody),
-      );
-
-      // ==========================================================
-      // HTTP STATUS
-      // ==========================================================
-
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw Exception("Server returned ${response.statusCode}");
-      }
-
-      // ==========================================================
-      // RESPONSE
-      // ==========================================================
-
-      final result = jsonDecode(response.body);
-
-      if (result['success'] != true) {
-        throw Exception(result['message'] ?? 'Unable to create payment order');
-      }
-
-      // ==========================================================
-      // ORDER
-      // ==========================================================
-
-      final order = result['order'];
-
-      _signupToken = result['signupToken'];
-
-      if (order == null) {
-        throw Exception('Payment order was not returned by server');
-      }
-
-      // ==========================================================
-      // STORE VENDOR DATA
-      // ==========================================================
-
-      _vendorSignupData = {
-        "token": "",
-
-        "name": _nameController.text.trim(),
-
-        "phoneNo": _mobileController.text.trim(),
-
-        "email": "",
-
-        // Store FCM token locally as well
-        "fcmToken": fcmToken ?? "",
-      };
-
-      // ==========================================================
-      // STOP LOADING BEFORE RAZORPAY
-      // ==========================================================
-
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
-      }
-
-      // ==========================================================
-      // RAZORPAY OPTIONS
-      // ==========================================================
-
-      final options = {
-        'key': order['key'],
-
-        'amount': order['amount'],
-
-        'currency': order['currency'] ?? 'INR',
-
-        'name': 'Aapkakaam',
-
-        'description': _t(
-          'Vendor Registration Fee ₹$vendorSignupFee',
-          'वेंडर रजिस्ट्रेशन शुल्क ₹$vendorSignupFee',
-        ),
-
-        'order_id': order['id'],
-
-        'prefill': {
-          'contact': _mobileController.text.trim(),
-
-          'name': _nameController.text.trim(),
-        },
-
-        'notes': {
-          'purpose': 'vendor_signup',
-
-          // Razorpay notes can also contain
-          // the FCM token if required.
-          'fcmToken': fcmToken.value,
-        },
-
-        'theme': {'color': '#4F46E5'},
-      };
-
-      // ==========================================================
-      // INITIALIZE RAZORPAY
-      // ==========================================================
-
-      if (_razorpay == null) {
-        _initRazorpay();
-      }
-
-      // ==========================================================
-      // OPEN RAZORPAY
-      // ==========================================================
-
-      _razorpay!.open(options);
-    } catch (e, stackTrace) {
-      if (!mounted) return;
-
-      setState(() {
-        isLoading = false;
-      });
-
-      _showSnackBar(e.toString().replaceFirst('Exception: ', ''), errorRed);
-    }
+    _showSnackBar(
+      e
+          .toString()
+          .replaceFirst('Exception: ', ''),
+      errorRed,
+    );
   }
+}
+
+
   // ============================================================
   // USER SIGNUP (Free)
   // ============================================================
 
   Future<void> _userSignup() async {
     // Validation checks
-    if (_nameController.text.isEmpty) {
-      _showSnackBar('Please enter your name', errorRed);
-      return;
-    }
-    if (_mobileController.text.length != 10) {
-      _showSnackBar('Please enter a valid mobile number', errorRed);
-      return;
-    }
-    if (_passwordController.text.length < 6) {
-      _showSnackBar('Password must be at least 6 characters', errorRed);
-      return;
-    }
-    if (_selectedGender == null) {
-      _showSnackBar('Please select your gender', errorRed);
-      return;
-    }
-    if (!_agreedToTnC) {
-      _showSnackBar(
-        'You must accept the Terms & Conditions and Privacy Policy',
-        errorRed,
-      );
-      return;
-    }
+   if (_nameController.text.isEmpty) {
+  _showSnackBar(
+    _t(
+      'Please enter your name',
+      'कृपया अपना नाम दर्ज करें',
+    ),
+    errorRed,
+  );
+  return;
+}
+if (_mobileController.text.length != 10) {
+  _showSnackBar(
+    _t(
+      'Please enter a valid mobile number',
+      'कृपया सही मोबाइल नंबर दर्ज करें',
+    ),
+    errorRed,
+  );
+  return;
+}
+if (_passwordController.text.length < 6) {
+  _showSnackBar(
+    _t(
+      'Password must be at least 6 characters',
+      'पासवर्ड कम से कम 6 अक्षरों का होना चाहिए',
+    ),
+    errorRed,
+  );
+  return;
+}
+if (_passwordController.text != _rePasswordController.text) {
+  _showSnackBar(
+    _t(
+      'Passwords do not match',
+      'पासवर्ड मैच नहीं हो रहा है',
+    ),
+    errorRed,
+  );
+  return;
+}
+if (_selectedGender == null) {
+  _showSnackBar(
+    _t(
+      'Please select your gender',
+      'कृपया अपना लिंग चुनें',
+    ),
+    errorRed,
+  );
+  return;
+}
+if (!_agreedToTnC) {
+  _showSnackBar(
+    _t(
+      'You must accept the Terms & Conditions and Privacy Policy',
+      'आपको नियम व शर्तें और गोपनीयता नीति स्वीकार करनी होगी',
+    ),
+    errorRed,
+  );
+  return;
+}
 
     setState(() => isLoading = true);
 
@@ -1568,11 +1892,12 @@ class _SignupPageState extends State<SignupPage> {
                                         ),
                                         // Payment Info Card
                                         const SizedBox(height: 16),
-                                        _paymentInfoCard(
+                                      if (widget.category ==
+                                                            'vendor') ...[  _paymentInfoCard(
                                           isDarkTheme,
                                           text,
                                           muted,
-                                        ),
+                                        ),],
                                         const SizedBox(height: 18),
 
                                         // Submit Button

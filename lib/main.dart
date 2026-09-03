@@ -92,7 +92,7 @@ class _MyAppState extends State<MyApp> {
                   builder: (context, vendor, _) {
                     return MaterialApp(
                       debugShowCheckedModeBanner: false,
-                      title: 'AapKaKaam',
+                      title: 'Aapkakaam',
                       navigatorKey: navigatorKey,
 
                       theme: _buildLightTheme(),
@@ -105,22 +105,24 @@ class _MyAppState extends State<MyApp> {
 
                         SystemChrome.setSystemUIOverlayStyle(
                           SystemUiOverlayStyle(
-                            // TOP: Time, network, battery area
-                            statusBarColor: const Color(0xFF4A00E0),
+                            statusBarColor:
+                                isDarkTheme
+                                    ? const Color(0xFF0B1020)
+                                    : const Color(0xFFF0F2F8),
 
-                            // BOTTOM: Android navigation/gesture area
-                            systemNavigationBarColor: theme.colorScheme.primary,
+                            // Android: network, Wi-Fi, battery icons
+                            statusBarIconBrightness:
+                                isDarkTheme
+                                    ? Brightness.light
+                                    : Brightness.dark,
 
-                            // Top icons/text
-                            statusBarIconBrightness: Brightness.dark,
+                            statusBarBrightness:
+                                isDark ? Brightness.dark : Brightness.light,
 
-                            // Bottom navigation icons/gesture
+                            systemNavigationBarColor:
+                                theme.scaffoldBackgroundColor,
                             systemNavigationBarIconBrightness:
-                                isDark ? Brightness.light : Brightness.light,
-
-                            // Android navigation divider
-                            systemNavigationBarDividerColor:
-                                theme.colorScheme.primary,
+                                isDark ? Brightness.light : Brightness.dark,
                           ),
                         );
 

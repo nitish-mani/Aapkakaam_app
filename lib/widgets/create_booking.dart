@@ -236,7 +236,7 @@ class _CreateBookingState extends State<CreateBooking> {
     String message,
     Color backgroundColor,
     IconData icon,
-  ) {
+    ) {
     final overlay = Overlay.of(context);
     late OverlayEntry overlayEntry;
 
@@ -798,7 +798,7 @@ class _CreateBookingState extends State<CreateBooking> {
     bool readOnly = false,
     IconData? icon,
     TextInputType keyboardType = TextInputType.text,
-  }) {
+    }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final primaryColor = colorScheme.primary;
@@ -1134,7 +1134,7 @@ class _CreateBookingState extends State<CreateBooking> {
     Color borderColor,
     String label,
     double screenWidth,
-  ) {
+    ) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1580,7 +1580,7 @@ class _CreateBookingState extends State<CreateBooking> {
               'post': _selectedPost ?? '',
               'dist': _districtController.text,
               'pincode': _pincodeController.text,
-              'type': jobType,
+              'type': jobType[0],
               'isSelfBooking': true,
               'date': now.day,
               'month': now.month - 1,

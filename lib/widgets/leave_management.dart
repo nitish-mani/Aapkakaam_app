@@ -1640,8 +1640,8 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                   const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      vertical: 14,
-                      horizontal: 16,
+                      vertical: 12,
+                      horizontal: 12,
                     ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -1666,32 +1666,47 @@ class _LeaveManagementPageState extends State<LeaveManagementPage>
                       children: [
                         Icon(
                           Icons.event_note,
-                          size: 18,
+                          size: 16,
                           color: isDark ? Colors.grey[400] : Colors.grey[600],
                         ),
-                        const SizedBox(width: 12),
-                        Text(
-                          _formatShortDate(leave.from),
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : Colors.black87,
+                        const SizedBox(width: 8),
+
+                        // ✅ Flexible prevents overflow
+                        Flexible(
+                          child: Text(
+                            _formatShortDate(leave.from),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                            overflow:
+                                TextOverflow
+                                    .ellipsis, // Shows ... if text is too long
                           ),
                         ),
+
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
                           child: Icon(
                             Icons.arrow_forward,
-                            size: 16,
+                            size: 14,
                             color: isDark ? Colors.grey[500] : Colors.grey[400],
                           ),
                         ),
-                        Text(
-                          _formatShortDate(leave.to),
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : Colors.black87,
+
+                        // ✅ Flexible prevents overflow
+                        Flexible(
+                          child: Text(
+                            _formatShortDate(leave.to),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                            overflow:
+                                TextOverflow
+                                    .ellipsis, // Shows ... if text is too long
                           ),
                         ),
                       ],

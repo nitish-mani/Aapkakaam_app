@@ -217,7 +217,7 @@ class _AvailableVendorState extends State<AvailableVendor>
         final errorData = jsonDecode(response.body);
         throw Exception(errorData['message'] ?? 'Failed to fetch vendors');
       }
-
+debugPrint('📦 Vendor Response: ${response.body}');
       final decoded = jsonDecode(response.body);
       final vendors = decoded['vendors'] as List? ?? [];
       return {...decoded, 'vendors': vendors};
@@ -280,7 +280,7 @@ class _AvailableVendorState extends State<AvailableVendor>
             }),
           )
           .timeout(const Duration(seconds: 15));
-
+debugPrint('📦 Booking Response: ${bookingResponse.body}');
       if (bookingResponse.statusCode < 200 ||
           bookingResponse.statusCode >= 300) {
         final errorData = jsonDecode(bookingResponse.body);
@@ -308,6 +308,7 @@ class _AvailableVendorState extends State<AvailableVendor>
       }
     } catch (e) {
       if (mounted) {
+        debugPrint('❌ Booking failed: $e');
         _showErrorSnackbar(context, e.toString());
       }
     } finally {
@@ -317,74 +318,112 @@ class _AvailableVendorState extends State<AvailableVendor>
     }
   }
 
-  Future<void> _updateUserBalance(Map<String, dynamic> responseData) async {
-    final updatedUser = UserModel(
-      token: _user!.token,
-      userId: _user!.userId,
-      name: _user!.name,
-      email: _user!.email,
-      verifyEmail: _user!.verifyEmail,
-      phoneNo: _user!.phoneNo,
-      verifyPhoneNo: _user!.verifyPhoneNo,
-      gender: _user!.gender,
-      address: _user!.address,
-      balance: responseData['data']?['balance'] ?? _user!.balance,
-      transactionCount:
-          responseData['transactionCount'] ?? _user!.transactionCount,
-      totalDiscount: responseData['totalDiscount'] ?? _user!.totalDiscount,
-      totalOriginalAmount:
-          responseData['totalOriginalAmount'] ?? _user!.totalOriginalAmount,
-      pending: _user!.pending,
-      completed: _user!.completed,
-      canceled: _user!.canceled,
-      pincode: _user!.pincode,
-      message: responseData['message'] ?? _user!.message,
-    );
+ Future<void> _updateUserBalance(
+  Map<String, dynamic> responseData,
+  ) async {
+  final updatedUser = UserModel(
+    token: _user!.token,
+    userId: _user!.userId,
+    name: _user!.name,
+    email: _user!.email,
+    verifyEmail: _user!.verifyEmail,
+    phoneNo: _user!.phoneNo,
+    verifyPhoneNo: _user!.verifyPhoneNo,
+    gender: _user!.gender,
+    address: _user!.address,
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user', jsonEncode(updatedUser.toJson()));
-    if (mounted) {
-      setState(() => _user = updatedUser);
-    }
+    balance:
+        (responseData['data']?['balance'] as num?)?.toDouble() ??
+        _user!.balance,
+
+    transactionCount:
+        responseData['transactionCount'] ?? _user!.transactionCount,
+
+    totalDiscount:
+        (responseData['totalDiscount'] as num?)?.toDouble() ??
+        _user!.totalDiscount,
+
+    totalOriginalAmount:
+        (responseData['totalOriginalAmount'] as num?)?.toDouble() ??
+        _user!.totalOriginalAmount,
+
+    pending: _user!.pending,
+    completed: _user!.completed,
+    canceled: _user!.canceled,
+    pincode: _user!.pincode,
+    message: responseData['message'] ?? _user!.message,
+  );
+
+  final prefs = await SharedPreferences.getInstance();
+
+  await prefs.setString(
+    'user',
+    jsonEncode(updatedUser.toJson()),
+  );
+
+  if (mounted) {
+    setState(() => _user = updatedUser);
   }
+}
 
-  Future<void> _updateVendorBalance(Map<String, dynamic> responseData) async {
-    final updatedVendor = VendorModel(
-      token: _vendor!.token,
-      vendorId: _vendor!.vendorId,
-      name: _vendor!.name,
-      email: _vendor!.email,
-      verifyEmail: _vendor!.verifyEmail,
-      phoneNo: _vendor!.phoneNo,
-      verifyPhoneNo: _vendor!.verifyPhoneNo,
-      type: _vendor!.type,
-      gender: _vendor!.gender,
-      rating: _vendor!.rating,
-      ratingCount: _vendor!.ratingCount,
-      wageRate: _vendor!.wageRate,
-      address: _vendor!.address,
-      balance: responseData['data']?['balance'] ?? _vendor!.balance,
-      wageRateType: _vendor!.wageRateType,
-      transactionCount:
-          responseData['transactionCount'] ?? _vendor!.transactionCount,
-      totalDiscount: responseData['totalDiscount'] ?? _vendor!.totalDiscount,
-      totalOriginalAmount:
-          responseData['totalOriginalAmount'] ?? _vendor!.totalOriginalAmount,
-      pending: _vendor!.pending,
-      completed: _vendor!.completed,
-      canceled: _vendor!.canceled,
-      earning: responseData['earning'] ?? _vendor!.earning,
-      pincode: _vendor!.pincode,
-      message: responseData['message'] ?? _vendor!.message,
-    );
+ Future<void> _updateVendorBalance(
+  Map<String, dynamic> responseData,
+  ) async {
+  final updatedVendor = VendorModel(
+    token: _vendor!.token,
+    vendorId: _vendor!.vendorId,
+    name: _vendor!.name,
+    email: _vendor!.email,
+    verifyEmail: _vendor!.verifyEmail,
+    phoneNo: _vendor!.phoneNo,
+    verifyPhoneNo: _vendor!.verifyPhoneNo,
+    type: _vendor!.type,
+    gender: _vendor!.gender,
+    rating: _vendor!.rating,
+    ratingCount: _vendor!.ratingCount,
+    wageRate: _vendor!.wageRate,
+    address: _vendor!.address,
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('vendor', jsonEncode(updatedVendor.toJson()));
-    if (mounted) {
-      setState(() => _vendor = updatedVendor);
-    }
+    balance:
+        (responseData['data']?['balance'] as num?)?.toDouble() ??
+        _vendor!.balance,
+
+    wageRateType: _vendor!.wageRateType,
+
+    transactionCount:
+        responseData['transactionCount'] ?? _vendor!.transactionCount,
+
+    totalDiscount:
+        (responseData['totalDiscount'] as num?)?.toDouble() ??
+        _vendor!.totalDiscount,
+
+    totalOriginalAmount:
+        (responseData['totalOriginalAmount'] as num?)?.toDouble() ??
+        _vendor!.totalOriginalAmount,
+
+    pending: _vendor!.pending,
+    completed: _vendor!.completed,
+    canceled: _vendor!.canceled,
+
+    earning:
+        (responseData['earning'] as num?)?.toDouble() ??
+        _vendor!.earning,
+
+    pincode: _vendor!.pincode,
+    message: responseData['message'] ?? _vendor!.message,
+  );
+
+  final prefs = await SharedPreferences.getInstance();
+
+  await prefs.setString(
+    'vendor',
+    jsonEncode(updatedVendor.toJson()),
+  );
+
+  if (mounted) {
+    setState(() => _vendor = updatedVendor);
   }
-
+}
   Future<void> _refreshVendorList() async {
     final bookingDate = widget.bookingDate;
     final token =

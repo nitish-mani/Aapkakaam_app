@@ -56,29 +56,58 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _submitForm(
     bool isVendor,
     ValueNotifier<bool> isLoggedIn,
-  ) async {
+  )async {
     if (widget.category == null) {
-      _showSnackBar('Invalid access. Please try again.', _errorRed);
+      _showSnackBar(
+        _t(
+          'Invalid access. Please try again.',
+          'अमान्य पहुँच। कृपया पुनः प्रयास करें।',
+        ),
+        _errorRed,
+      );
       return;
     }
 
     if (_mobileController.text.isEmpty) {
-      _showSnackBar('Please enter your mobile number', _errorRed);
+      _showSnackBar(
+        _t(
+          'Please enter your mobile number',
+          'कृपया अपना मोबाइल नंबर दर्ज करें',
+        ),
+        _errorRed,
+      );
       return;
     }
     if (_mobileController.text.length != 10) {
-      _showSnackBar('Please enter a valid 10-digit mobile number', _errorRed);
+      _showSnackBar(
+        _t(
+          'Please enter a valid 10-digit mobile number',
+          'कृपया सही 10 अंकों का मोबाइल नंबर दर्ज करें',
+        ),
+        _errorRed,
+      );
       return;
     }
     if (_passwordController.text.isEmpty) {
-      _showSnackBar('Please enter your password', _errorRed);
+      _showSnackBar(
+        _t(
+          'Please enter your password',
+          'कृपया अपना पासवर्ड दर्ज करें',
+        ),
+        _errorRed,
+      );
       return;
     }
     if (_passwordController.text.length < 6) {
-      _showSnackBar('Password must be at least 6 characters', _errorRed);
+      _showSnackBar(
+        _t(
+          'Password must be at least 6 characters',
+          'पासवर्ड कम से कम 6 अक्षरों का होना चाहिए',
+        ),
+        _errorRed,
+      );
       return;
     }
-
     setState(() {
       isLoading = true;
     });
