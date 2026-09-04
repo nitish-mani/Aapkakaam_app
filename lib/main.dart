@@ -11,7 +11,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +26,7 @@ Future<void> main() async {
   // ============================================================
   // Google Mobile Ads
   // ============================================================
-  await MobileAds.instance.initialize();
+  // await MobileAds.instance.initialize();
 
   // ============================================================
   // Orientation Lock
