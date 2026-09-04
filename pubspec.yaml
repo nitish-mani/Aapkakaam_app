@@ -52,7 +52,6 @@ dependencies:
   flutter_screenutil: ^5.9.3
   url_launcher: ^6.3.1
   razorpay_flutter: ^1.4.0
-  app_settings: ^6.1.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

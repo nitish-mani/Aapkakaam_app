@@ -1,6 +1,8 @@
-import 'package:app_settings/app_settings.dart';
+// import 'package:app_settings/app_settings.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:url_launcher/url_launcher.dart';
 
 class NotificationPermissionGate extends StatefulWidget {
   final Widget child;
@@ -212,18 +214,24 @@ class _NotificationPermissionGateState extends State<NotificationPermissionGate>
 
   Future<void> _openNotificationSettings() async {
     try {
-      await AppSettings.openAppSettings(type: AppSettingsType.notification);
-    } catch (e) {
-      debugPrint('Notification settings failed: $e');
+      if (Platform.isIOS) {
+        final Uri uri = Uri.parse('app-settings:');
 
-      try {
-        await AppSettings.openAppSettings();
-      } catch (e2) {
-        debugPrint('General app settings failed: $e2');
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+        }
+      } else if (Platform.isAndroid) {
+        // Opens the application's settings page.
+        final Uri uri = Uri.parse('app-settings:');
+
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+        }
       }
+    } catch (e) {
+      debugPrint('Could not open app settings: $e');
     }
   }
-
   // ==========================================================
   // BUILD
   // ==========================================================
