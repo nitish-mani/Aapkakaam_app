@@ -1,6 +1,9 @@
 // this file is made responsive and fully Hindi compatible with custom calendar.
 
+import 'dart:convert';
+
 import 'package:app_aapkakaam/data/notifiers.dart';
+import 'package:app_aapkakaam/widgets/address_page.dart';
 import 'package:app_aapkakaam/widgets/available_vendor.dart';
 import 'package:flutter/material.dart';
 
@@ -762,18 +765,31 @@ class _BookingDateSelectionState extends State<BookingDateSelection> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
+
                     onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (_) => AvailableVendor(
-                                bookingDate: selectedDate,
-                                profession: widget.profession,
-                                hindiName: widget.hindiName,
-                              ),
-                        ),
-                      );
+                      // Check the correct model based on the logged-in role.
+
+                      // Prevent navigation if data is still loading or missing.
+                      if (isAddressAvailable.value == false) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AddAddressDialog(),
+                          ),
+                        );
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (_) => AvailableVendor(
+                                  bookingDate: selectedDate,
+                                  profession: widget.profession,
+                                  hindiName: widget.hindiName,
+                                ),
+                          ),
+                        );
+                      }
                     },
                     icon: Icon(
                       Icons.search_rounded,
