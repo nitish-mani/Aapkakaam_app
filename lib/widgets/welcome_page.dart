@@ -3,6 +3,7 @@ import 'package:app_aapkakaam/widgets/login_page.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
@@ -12,6 +13,17 @@ class WelcomePage extends StatefulWidget {
 }
 
 class _WelcomePageState extends State<WelcomePage> {
+  late final YoutubePlayerController _youtubeController =
+      YoutubePlayerController.fromVideoId(
+        videoId: '7whLdJlnihM',
+        autoPlay: false,
+        params: const YoutubePlayerParams(
+          showControls: true,
+          showFullscreenButton: true,
+          origin: 'https://www.youtube-nocookie.com',
+        ),
+      );
+
   // Theme Colors
   static const Color _primaryBlue = Color(0xFF4F46E5);
   static const Color _primaryPurple = Color(0xFF7C3AED);
@@ -55,6 +67,12 @@ class _WelcomePageState extends State<WelcomePage> {
         },
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _youtubeController.close();
+    super.dispose();
   }
 
   @override
@@ -112,75 +130,75 @@ class _WelcomePageState extends State<WelcomePage> {
 
                         SizedBox(height: isCompact ? 20 : 34),
 
-                        // Hero illustration with theme border
-                        Container(
-                          width: double.infinity,
-                          padding: EdgeInsets.fromLTRB(
-                            14,
-                            isCompact ? 8 : 14,
-                            14,
-                            14,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(32),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _primaryBlue.withOpacity(0.10),
-                                blurRadius: 30,
-                                offset: const Offset(0, 14),
-                              ),
-                            ],
-                            border: Border.all(
-                              color: _primaryBlue.withOpacity(0.10),
-                              width: 1,
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              SizedBox(
-                                height: isCompact ? 210 : 285,
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    Lottie.asset(
-                                      'assets/lotties/welcome.json',
-                                      fit: BoxFit.contain,
-                                    ),
-                                    Positioned(
-                                      child: Container(
-                                        padding: const EdgeInsets.all(6),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: _primaryBlue.withOpacity(
-                                                0.25,
-                                              ),
-                                              blurRadius: 20,
-                                              spreadRadius: 2,
-                                            ),
-                                          ],
-                                        ),
-                                        child: ClipOval(
-                                          child: Image.asset(
-                                            'assets/images/aapkakaam_aa.jpg',
-                                            width: isCompact ? 52 : 66,
-                                            height: isCompact ? 52 : 66,
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        // // Hero illustration with theme border
+                        // Container(
+                        //   width: double.infinity,
+                        //   padding: EdgeInsets.fromLTRB(
+                        //     14,
+                        //     isCompact ? 8 : 14,
+                        //     14,
+                        //     14,
+                        //   ),
+                        //   decoration: BoxDecoration(
+                        //     color: Colors.white,
+                        //     borderRadius: BorderRadius.circular(32),
+                        //     boxShadow: [
+                        //       BoxShadow(
+                        //         color: _primaryBlue.withOpacity(0.10),
+                        //         blurRadius: 30,
+                        //         offset: const Offset(0, 14),
+                        //       ),
+                        //     ],
+                        //     border: Border.all(
+                        //       color: _primaryBlue.withOpacity(0.10),
+                        //       width: 1,
+                        //     ),
+                        //   ),
+                        //   child: Column(
+                        //     children: [
+                        //       SizedBox(
+                        //         height: isCompact ? 210 : 285,
+                        //         child: Stack(
+                        //           alignment: Alignment.center,
+                        //           children: [
+                        //             Lottie.asset(
+                        //               'assets/lotties/welcome.json',
+                        //               fit: BoxFit.contain,
+                        //             ),
+                        //             Positioned(
+                        //               child: Container(
+                        //                 padding: const EdgeInsets.all(6),
+                        //                 decoration: BoxDecoration(
+                        //                   color: Colors.white,
+                        //                   shape: BoxShape.circle,
+                        //                   boxShadow: [
+                        //                     BoxShadow(
+                        //                       color: _primaryBlue.withOpacity(
+                        //                         0.25,
+                        //                       ),
+                        //                       blurRadius: 20,
+                        //                       spreadRadius: 2,
+                        //                     ),
+                        //                   ],
+                        //                 ),
+                        //                 child: ClipOval(
+                        //                   child: Image.asset(
+                        //                     'assets/images/aapkakaam_aa.jpg',
+                        //                     width: isCompact ? 52 : 66,
+                        //                     height: isCompact ? 52 : 66,
+                        //                     fit: BoxFit.cover,
+                        //                   ),
+                        //                 ),
+                        //               ),
+                        //             ),
+                        //           ],
+                        //         ),
+                        //       ),
+                        //     ],
+                        //   ),
+                        // ),
 
-                        SizedBox(height: isCompact ? 24 : 34),
+                        // SizedBox(height: isCompact ? 24 : 34),
 
                         // Heading with theme color
                         Text(
@@ -214,7 +232,12 @@ class _WelcomePageState extends State<WelcomePage> {
                           ),
                         ),
 
-                        SizedBox(height: isCompact ? 26 : 34),
+                        SizedBox(height: isCompact ? 22 : 28),
+
+                        // Signup tutorial video
+                        _signupVideoCard(),
+
+                        SizedBox(height: isCompact ? 24 : 30),
 
                         // Account choice card with theme border
                         Container(
@@ -263,11 +286,11 @@ class _WelcomePageState extends State<WelcomePage> {
                                 icon: Icons.person_rounded,
                                 title: _t('Find a Service', 'सेवा खोजें'),
                                 subtitle: _t(
-                                  'Book a trusted local professional',
-                                  'भरोसेमंद स्थानीय कारीगर की सेवा लें',
+                                  'Continue As a User',
+                                  'यूजर के रूप में जारी रखें',
                                 ),
                                 onTap: () => _navigateToLogin(context, false),
-                                primary: true,
+                                primary: false,
                               ),
 
                               const SizedBox(height: 8),
@@ -279,11 +302,11 @@ class _WelcomePageState extends State<WelcomePage> {
                                   'अपनी सेवा दें',
                                 ),
                                 subtitle: _t(
-                                  'Get customers and grow your work',
-                                  'ग्राहक पाएं और अपना काम बढ़ाएं',
+                                  'Continue As a Service Provider',
+                                  'सर्विस प्रोवाइडर के रूप में जारी रखें',
                                 ),
                                 onTap: () => _navigateToLogin(context, true),
-                                primary: false,
+                                primary: true,
                               ),
                             ],
                           ),
@@ -326,6 +349,86 @@ class _WelcomePageState extends State<WelcomePage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _signupVideoCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _primaryBlue.withOpacity(0.14)),
+        boxShadow: [
+          BoxShadow(
+            color: _primaryBlue.withOpacity(0.07),
+            blurRadius: 18,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF0000).withOpacity(0.09),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.play_circle_fill_rounded,
+                  color: Color(0xFFFF0000),
+                  size: 25,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _t(
+                        'How to Sign Up on Aapkakaam',
+                        'Aapkakaam पर साइन अप कैसे करें',
+                      ),
+                      style: const TextStyle(
+                        color: _textDark,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _t(
+                        'Watch this quick tutorial',
+                        'यह छोटा ट्यूटोरियल देखें',
+                      ),
+                      style: const TextStyle(
+                        color: _textLight,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: YoutubePlayer(
+              controller: _youtubeController,
+              aspectRatio: 16 / 9,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
