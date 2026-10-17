@@ -5,7 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
-import 'package:app_aapkakaam/navBarWidgets/home_page.dart';
+// import 'package:app_aapkakaam/navBarWidgets/home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:app_aapkakaam/widgets/login_page.dart';
 import 'package:app_aapkakaam/widgets/welcome_page.dart';
@@ -13,6 +13,7 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:app_aapkakaam/data/service_data.dart';
 
 class SignupPage extends StatefulWidget {
   final String? category;
@@ -79,191 +80,50 @@ class _SignupPageState extends State<SignupPage> {
   final List<String> _gender = ['Male', 'Female', 'Other'];
 
   // ============================================================
-  // PROFESSION MAPS
-  // ============================================================
-  final Map<String, String> _professionHindiMap = {
-    'Labour': 'मजदूर',
-    'Mason': 'राजमिस्त्री',
-    'Electrician': 'बिजली मिस्त्री',
-    'Plumber': 'प्लंबर',
-    'Painter': 'पेंटर',
-    'Carpenter': 'बढ़ई',
-    'Tiles Fitter': 'टाइल मिस्त्री',
-    'Marble Fitter': 'मार्बल मिस्त्री',
-    'Shuttering': 'शटरिंग',
-    'Welder': 'वेल्डर',
-    'Fabricator': 'फैब्रिकेटर',
-    'Glass Fitter': 'कांच मिस्त्री',
-    'POP Worker': 'पीओपी मिस्त्री',
-    'AC Mechanic': 'एसी मिस्त्री',
-    'Fridge Mechanic': 'फ्रिज मिस्त्री',
-    'Bike Repair': 'बाइक रिपेयर',
-    'Car Repair': 'कार रिपेयर',
-    'Laptop Repair': 'लैपटॉप रिपेयर',
-    'CCTV Installation': 'सीसीटीवी इंस्टालेशन',
-    'Inverter Repair': 'इन्वर्टर मरम्मत',
-    'Microwave Repair': 'माइक्रोवेव मरम्मत',
-    'Driver': 'ड्राइवर',
-    'Home Tutor': 'होम ट्यूटर',
-    'Milk Man': 'दूध वाला',
-    'Washer Man': 'धोबी',
-    'Gardener': 'माली',
-    'Security Guard': 'सुरक्षा गार्ड',
-    'House Maid': 'घरेलू सहायिका',
-    'Baby Sitter': 'बेबी सिटर',
-    'Old Age Caregiver': 'बुजुर्ग देखभालकर्ता',
-    'Parlour': 'पार्लर',
-    'Mehandi Maker': 'मेहंदी कलाकार',
-    'Pandit Ji': 'पंडित जी',
-    'Cook': 'रसोइया',
-    'Lights': 'लाइट',
-    'Tent House': 'टेंट हाउस',
-    'Kirtan Mandali': 'कीर्तन मंडली',
-    'Generator': 'जनरेटर',
-    'DJ': 'डीजे',
-    'Waiter': 'वेटर',
-    'RO Water': 'आरओ पानी',
-    'Chaat': 'चाट',
-    'Dulha Rath': 'दूल्हा रथ',
-    'Paan Wala': 'पान वाला',
-    'Fruits Seller': 'फल विक्रेता',
-    'Marriage Hall': 'मैरिज हॉल',
-    'Photographer': 'फोटोग्राफर',
-    'Videographer': 'वीडियोग्राफर',
-    'Makeup Artist': 'मेकअप कलाकार',
-    'Band Party': 'बैंड पार्टी',
-    'Fireworks': 'पटाखे',
-    'Catering': 'कैटरिंग',
-    'Four Wheeler': 'चार पहिया',
-    'Bus': 'बस',
-    'Auto': 'ऑटो',
-    'E-Rikshaw': 'ई-रिक्शा',
-    'Mini Truck': 'मिनी ट्रक',
-    'Dhankutti': 'धान कुट्टी',
-    'Aata Chakki': 'आटा चक्की',
-    'Tank Cleaner': 'टैंक क्लीनर',
-    'Pual Cutter': 'पुआल कटर',
-    'Bhoonsa Seller': 'भूसा विक्रेता',
-    'Pest Control': 'कीट नियंत्रण',
-    'Deep Cleaning': 'गहरी सफाई',
-    'Water Tank Cleaning': 'पानी की टंकी सफाई',
-    'Geyser Repair': 'गीजर मरम्मत',
-    'Washing Machine Repair': 'वॉशिंग मशीन मरम्मत',
-    'TV Repair': 'टीवी मरम्मत',
-    'Computer Trainer': 'कंप्यूटर प्रशिक्षक',
-    'Music Teacher': 'संगीत शिक्षक',
-    'Dance Teacher': 'नृत्य शिक्षक',
-    'Art Teacher': 'कला शिक्षक',
-    'Language Trainer': 'भाषा प्रशिक्षक',
-  };
-
-  final Map<String, String> _professionToJobType = {
-    'Labour': 'labour',
-    'Mason': 'mason',
-    'Electrician': 'electrician',
-    'Plumber': 'plumber',
-    'Painter': 'painter',
-    'Carpenter': 'carpenter',
-    'Tiles Fitter': 'tiles fitter',
-    'Marble Fitter': 'marble fitter',
-    'Shuttering': 'shuttering',
-    'Welder': 'welder',
-    'Fabricator': 'fabricator',
-    'Glass Fitter': 'glass fitter',
-    'POP Worker': 'pop worker',
-    'AC Mechanic': 'ac mechanic',
-    'Fridge Mechanic': 'fridge mechanic',
-    'Bike Repair': 'bike repaire',
-    'Car Repair': 'car repaire',
-    'Laptop Repair': 'laptop repaire',
-    'CCTV Installation': 'cctv installation',
-    'Inverter Repair': 'inverter repair',
-    'Microwave Repair': 'microwave repair',
-    'Driver': 'driver',
-    'Home Tutor': 'home tutor',
-    'Milk Man': 'milk man',
-    'Washer Man': 'washer man',
-    'Gardener': 'gardener',
-    'Security Guard': 'security guard',
-    'House Maid': 'house maid',
-    'Baby Sitter': 'baby sitter',
-    'Old Age Caregiver': 'old age caregiver',
-    'Parlour': 'parlour',
-    'Mehandi Maker': 'menhandi maker',
-    'Pandit Ji': 'pundit ji',
-    'Cook': 'cook',
-    'Lights': 'lights',
-    'Tent House': 'tent house',
-    'Kirtan Mandali': 'kirtan mandli',
-    'Generator': 'generator',
-    'DJ': 'dj',
-    'Waiter': 'waiter',
-    'RO Water': 'ro',
-    'Chaat': 'chaat',
-    'Dulha Rath': 'dulha rath',
-    'Paan Wala': 'paan wala',
-    'Fruits Seller': 'fruit seller',
-    'Marriage Hall': 'marriage hall',
-    'Photographer': 'photographer',
-    'Videographer': 'videographer',
-    'Makeup Artist': 'makeup artist',
-    'Band Party': 'band party',
-    'Fireworks': 'fireworks',
-    'Catering': 'catering',
-    'Four Wheeler': 'four wheeler',
-    'Bus': 'bus',
-    'Auto': 'auto',
-    'E-Rikshaw': 'e-riksha',
-    'Mini Truck': 'mini truck',
-    'Dhankutti': 'dhankutti',
-    'Aata Chakki': 'aata chakki',
-    'Tank Cleaner': 'latrine tank cleaner',
-    'Pual Cutter': 'pual cutter',
-    'Bhoonsa Seller': 'bhoonsa pual seller',
-    'Pest Control': 'pest control',
-    'Deep Cleaning': 'deep cleaning',
-    'Water Tank Cleaning': 'water tank cleaning',
-    'Geyser Repair': 'geyser repair',
-    'Washing Machine Repair': 'washing machine repair',
-    'TV Repair': 'tv repair',
-    'Computer Trainer': 'computer trainer',
-    'Music Teacher': 'music teacher',
-    'Dance Teacher': 'dance teacher',
-    'Art Teacher': 'art teacher',
-    'Language Trainer': 'language trainer',
-  };
-
-  // ============================================================
   // HELPERS
   // ============================================================
-
-  List<String> get _professions {
-    final List<String> professions = [];
-    for (final entry in _professionHindiMap.keys) {
-      professions.add(entry);
-    }
-    professions.sort();
-    return professions;
+  List<Map<String, dynamic>> get _allServices {
+    return serviceData
+        .expand(
+          (category) => (category['services'] as List).map(
+            (service) => Map<String, dynamic>.from(service as Map),
+          ),
+        )
+        .toList();
   }
 
-  String get _profileCategory {
-    if (widget.category == null) return '';
-    return widget.category![0].toUpperCase() + widget.category!.substring(1);
+  List<String> get _professions {
+    return _allServices
+        .map((service) => service['title'].toString())
+        .toSet()
+        .toList()
+      ..sort();
+  }
+
+  String _getProfessionDisplay(String title) {
+    final service = _allServices.firstWhere(
+      (item) => item['title'] == title,
+      orElse: () => <String, dynamic>{},
+    );
+
+    if (isHindiNotifier.value) {
+      return (service['hindi'] ?? title).toString();
+    }
+
+    return title;
   }
 
   String _jobTypeForBackend(String profession) {
-    return _professionToJobType[profession] ?? profession.trim().toLowerCase();
+    final service = _allServices.firstWhere(
+      (item) => item['title'] == profession,
+      orElse: () => <String, dynamic>{},
+    );
+
+    return (service['jobType'] ?? profession.trim().toLowerCase()).toString();
   }
 
   String _t(String english, String hindi) {
     return isHindiNotifier.value ? hindi : english;
-  }
-
-  String _getProfessionDisplay(String value) {
-    if (isHindiNotifier.value) {
-      return _professionHindiMap[value] ?? value;
-    }
-    return value;
   }
 
   String get _serverUrl => KConstantURL.url;
@@ -496,531 +356,431 @@ class _SignupPageState extends State<SignupPage> {
   // VENDOR SIGNUP WITH INLINE PAYMENT
   // ============================================================
 
-  
-Future<void> _initiateVendorPayment() async {
-  // ==========================================================
-  // VALIDATION - NAME
-  // ==========================================================
-final name = _nameController.text.trim();
-
-if (name.isEmpty) {
-  _showSnackBar(
-    _t(
-      'Please enter your name',
-      'कृपया अपना नाम दर्ज करें',
-    ),
-    errorRed,
-  );
-  return;
-}
-
-// ==========================================================
-// VALIDATION - MOBILE NUMBER
-// मोबाइल नंबर की जाँच
-// ==========================================================
-
-final mobileText = _mobileController.text.trim();
-
-if (mobileText.length != 10) {
-  _showSnackBar(
-    _t(
-      'Please enter a valid mobile number',
-      'कृपया सही मोबाइल नंबर डालें',
-    ),
-    errorRed,
-  );
-  return;
-}
-
-final phoneNumber = int.tryParse(mobileText);
-
-if (phoneNumber == null) {
-  _showSnackBar(
-    _t(
-      'Please enter a valid mobile number',
-      'कृपया सही मोबाइल नंबर डालें',
-    ),
-    errorRed,
-  );
-  return;
-}
-
-// ==========================================================
-// VALIDATION - PASSWORD
-// पासवर्ड की जाँच
-// ==========================================================
-
-if (_passwordController.text.length < 6) {
-  _showSnackBar(
-    _t(
-      'Password must be at least 6 characters',
-      'पासवर्ड कम से कम 6 अक्षरों का होना चाहिए',
-    ),
-    errorRed,
-  );
-  return;
-}
-
-if (_passwordController.text != _rePasswordController.text) {
-  _showSnackBar(
-    _t(
-      'Passwords do not match',
-      'पासवर्ड मैच नहीं हो रहा है',
-    ),
-    errorRed,
-  );
-  return;
-}
-// ==========================================================
-// VALIDATION - GENDER
-// लिंग की जाँच
-// ==========================================================
-
-if (_selectedGender == null) {
-  _showSnackBar(
-    _t(
-      'Please select your gender',
-      'कृपया अपना लिंग चुनें',
-    ),
-    errorRed,
-  );
-  return;
-}
-
-// ==========================================================
-// VALIDATION - JOBS
-// काम (जॉब) की जाँच
-// ==========================================================
-
-if (_selectedProfessions.isEmpty) {
-  _showSnackBar(
-    _t(
-      'Please select at least one job',
-      'कृपया कम से कम एक काम चुनें',
-    ),
-    errorRed,
-  );
-  return;
-}
-
-if (_selectedProfessions.length > maxJobs) {
-  _showSnackBar(
-    _t(
-      'You can select a maximum of $maxJobs jobs',
-      'आप अधिकतम $maxJobs काम चुन सकते हैं',
-    ),
-    errorRed,
-  );
-  return;
-}
-
-// ==========================================================
-// VALIDATION - EXPERIENCE
-// अनुभव की जाँच
-// ==========================================================
-
-final experienceText = _experienceController.text.trim();
-
-if (experienceText.isEmpty) {
-  _showSnackBar(
-    _t(
-      'Please enter your experience',
-      'कृपया अपना अनुभव दर्ज करें',
-    ),
-    errorRed,
-  );
-  return;
-}
-
-final experience = int.tryParse(experienceText);
-
-if (experience == null || experience < 0) {
-  _showSnackBar(
-    _t(
-      'Please enter a valid experience',
-      'कृपया वैध अनुभव दर्ज करें',
-    ),
-    errorRed,
-  );
-  return;
-}
-
-// ==========================================================
-// VALIDATION - TERMS & CONDITIONS
-// नियम व शर्तों की जाँच
-// ==========================================================
-
-if (!_agreedToTnC) {
-  _showSnackBar(
-    _t(
-      'You must accept the Terms & Conditions and Privacy Policy',
-      'आपको नियम व शर्तें और गोपनीयता नीति स्वीकार करनी होगी',
-    ),
-    errorRed,
-  );
-  return;
-}
-
-  // ==========================================================
-  // START LOADING
-  // ==========================================================
-
-  if (mounted) {
-    setState(() {
-      isLoading = true;
-    });
-  }
-
-  try {
+  Future<void> _initiateVendorPayment() async {
     // ==========================================================
-    // JOB TYPES
+    // VALIDATION - NAME
     // ==========================================================
+    final name = _nameController.text.trim();
 
-    final jobTypesForBackend =
-        _selectedProfessions.map(_jobTypeForBackend).toList();
-
-    // ==========================================================
-    // API URL
-    // ==========================================================
-
-    final url = "$_serverUrl/vendor/signup/create-order";
-
-    // ==========================================================
-    // REQUEST BODY
-    // ==========================================================
-
-    final requestBody = {
-      "name": name,
-
-      "phoneNo": phoneNumber,
-
-      "password": _passwordController.text,
-
-      "gender": _selectedGender?.toLowerCase(),
-
-      "type": jobTypesForBackend,
-
-      "experience": experience,
-
-      "sharedBy": widget.id ?? "",
-
-      "cd": widget.cd ?? "",
-
-      "validPhoneNoId": otpId1.value,
-
-      "agreedToTnCnP": true,
-
-      // ========================================================
-      // FCM TOKEN
-      // ========================================================
-
-      "fcmToken": fcmToken.value,
-    };
-
-    // ==========================================================
-    // DEBUG REQUEST
-    // ==========================================================
-
-    debugPrint(
-      "══════════════════════════════════════",
-    );
-
-    debugPrint(
-      "Signup API URL: $url",
-    );
-
-    debugPrint(
-      "Signup request body: "
-      "${{
-        ...requestBody,
-        "password": "***",
-      }}",
-    );
-
-    debugPrint(
-      "══════════════════════════════════════",
-    );
-
-    // ==========================================================
-    // CREATE PAYMENT ORDER
-    // ==========================================================
-
-    final response = await http.post(
-      Uri.parse(url),
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      body: jsonEncode(requestBody),
-    );
-
-    // ==========================================================
-    // DEBUG RESPONSE
-    // ==========================================================
-
-    debugPrint(
-      '══════════════════════════════════════',
-    );
-
-    debugPrint(
-      'Signup API status: ${response.statusCode}',
-    );
-
-    debugPrint(
-      'Signup API response: ${response.body}',
-    );
-
-    debugPrint(
-      '══════════════════════════════════════',
-    );
-
-    // ==========================================================
-    // HTTP STATUS VALIDATION
-    // ==========================================================
-
-    if (response.statusCode < 200 ||
-        response.statusCode >= 300) {
-      String errorMessage = 'An error occurred';
-
-      try {
-        final responseData = jsonDecode(response.body);
-
-        if (responseData is Map<String, dynamic>) {
-          errorMessage =
-              responseData['message'] ??
-              responseData['error'] ??
-              errorMessage;
-        }
-      } catch (e) {
-        debugPrint(
-          'Error decoding API error response: $e',
-        );
-      }
-
-      debugPrint(
-        'Signup API error: $errorMessage',
+    if (name.isEmpty) {
+      _showSnackBar(
+        _t('Please enter your name', 'कृपया अपना नाम दर्ज करें'),
+        errorRed,
       );
-
-      throw Exception(errorMessage);
+      return;
     }
 
     // ==========================================================
-    // PARSE RESPONSE
+    // VALIDATION - MOBILE NUMBER
+    // मोबाइल नंबर की जाँच
     // ==========================================================
 
-    final decodedResponse = jsonDecode(response.body);
+    final mobileText = _mobileController.text.trim();
 
-    if (decodedResponse is! Map<String, dynamic>) {
-      throw Exception(
-        'Invalid response received from server',
+    if (mobileText.length != 10) {
+      _showSnackBar(
+        _t('Please enter a valid mobile number', 'कृपया सही मोबाइल नंबर डालें'),
+        errorRed,
       );
+      return;
     }
 
-    final result = decodedResponse;
+    final phoneNumber = int.tryParse(mobileText);
 
-    // ==========================================================
-    // CHECK SUCCESS
-    // ==========================================================
-
-    if (result['success'] != true) {
-      throw Exception(
-        result['message'] ??
-            'Unable to create payment order',
+    if (phoneNumber == null) {
+      _showSnackBar(
+        _t('Please enter a valid mobile number', 'कृपया सही मोबाइल नंबर डालें'),
+        errorRed,
       );
-    }
-
-    // ==========================================================
-    // GET PAYMENT ORDER
-    // ==========================================================
-
-    final order = result['order'];
-
-    // ==========================================================
-    // STORE SIGNUP TOKEN
-    // ==========================================================
-
-    _signupToken = result['signupToken'];
-
-    if (_signupToken == null ||
-        _signupToken.toString().isEmpty) {
-      throw Exception(
-        'Signup token was not returned by server',
-      );
+      return;
     }
 
     // ==========================================================
-    // VALIDATE PAYMENT ORDER
+    // VALIDATION - PASSWORD
+    // पासवर्ड की जाँच
     // ==========================================================
 
-    if (order == null) {
-      throw Exception(
-        'Payment order was not returned by server',
+    if (_passwordController.text.length < 6) {
+      _showSnackBar(
+        _t(
+          'Password must be at least 6 characters',
+          'पासवर्ड कम से कम 6 अक्षरों का होना चाहिए',
+        ),
+        errorRed,
       );
+      return;
     }
 
-    if (order is! Map) {
-      throw Exception(
-        'Invalid payment order received from server',
+    if (_passwordController.text != _rePasswordController.text) {
+      _showSnackBar(
+        _t('Passwords do not match', 'पासवर्ड मैच नहीं हो रहा है'),
+        errorRed,
       );
+      return;
     }
+    // ==========================================================
+    // VALIDATION - GENDER
+    // लिंग की जाँच
+    // ==========================================================
 
-    if (order['id'] == null ||
-        order['id'].toString().isEmpty) {
-      throw Exception(
-        'Payment order ID was not returned by server',
+    if (_selectedGender == null) {
+      _showSnackBar(
+        _t('Please select your gender', 'कृपया अपना लिंग चुनें'),
+        errorRed,
       );
-    }
-
-    if (order['key'] == null ||
-        order['key'].toString().isEmpty) {
-      throw Exception(
-        'Razorpay key was not returned by server',
-      );
+      return;
     }
 
     // ==========================================================
-    // STORE VENDOR DATA LOCALLY
+    // VALIDATION - JOBS
+    // काम (जॉब) की जाँच
     // ==========================================================
 
-    _vendorSignupData = {
-      "token": "",
+    if (_selectedProfessions.isEmpty) {
+      _showSnackBar(
+        _t('Please select at least one job', 'कृपया कम से कम एक काम चुनें'),
+        errorRed,
+      );
+      return;
+    }
 
-      "name": name,
-
-      "phoneNo": mobileText,
-
-      "email": "",
-
-      "fcmToken": fcmToken.value,
-    };
+    if (_selectedProfessions.length > maxJobs) {
+      _showSnackBar(
+        _t(
+          'You can select a maximum of $maxJobs jobs',
+          'आप अधिकतम $maxJobs काम चुन सकते हैं',
+        ),
+        errorRed,
+      );
+      return;
+    }
 
     // ==========================================================
-    // STOP LOADING BEFORE RAZORPAY
+    // VALIDATION - EXPERIENCE
+    // अनुभव की जाँच
+    // ==========================================================
+
+    final experienceText = _experienceController.text.trim();
+
+    if (experienceText.isEmpty) {
+      _showSnackBar(
+        _t('Please enter your experience', 'कृपया अपना अनुभव दर्ज करें'),
+        errorRed,
+      );
+      return;
+    }
+
+    final experience = int.tryParse(experienceText);
+
+    if (experience == null || experience < 0) {
+      _showSnackBar(
+        _t('Please enter a valid experience', 'कृपया वैध अनुभव दर्ज करें'),
+        errorRed,
+      );
+      return;
+    }
+
+    // ==========================================================
+    // VALIDATION - TERMS & CONDITIONS
+    // नियम व शर्तों की जाँच
+    // ==========================================================
+
+    if (!_agreedToTnC) {
+      _showSnackBar(
+        _t(
+          'You must accept the Terms & Conditions and Privacy Policy',
+          'आपको नियम व शर्तें और गोपनीयता नीति स्वीकार करनी होगी',
+        ),
+        errorRed,
+      );
+      return;
+    }
+
+    // ==========================================================
+    // START LOADING
     // ==========================================================
 
     if (mounted) {
       setState(() {
-        isLoading = false;
+        isLoading = true;
       });
     }
 
-    // ==========================================================
-    // RAZORPAY OPTIONS
-    // ==========================================================
+    try {
+      // ==========================================================
+      // JOB TYPES
+      // ==========================================================
 
-    final options = {
-      'key': order['key'],
+      final jobTypesForBackend =
+          _selectedProfessions.map(_jobTypeForBackend).toList();
 
-      'amount': order['amount'],
+      // ==========================================================
+      // API URL
+      // ==========================================================
 
-      'currency': order['currency'] ?? 'INR',
+      final url = "$_serverUrl/vendor/signup/create-order";
 
-      'name': 'Aapkakaam',
+      // ==========================================================
+      // REQUEST BODY
+      // ==========================================================
 
-      'description': _t(
-        'Vendor Registration Fee ₹$vendorSignupFee',
-        'वेंडर रजिस्ट्रेशन शुल्क ₹$vendorSignupFee',
-      ),
+      final requestBody = {
+        "name": name,
 
-      'order_id': order['id'],
+        "phoneNo": phoneNumber,
 
-      'prefill': {
-        'contact': mobileText,
+        "password": _passwordController.text,
 
-        'name': name,
-      },
+        "gender": _selectedGender?.toLowerCase(),
 
-      'notes': {
-        'purpose': 'vendor_signup',
+        "type": jobTypesForBackend,
 
-        'fcmToken': fcmToken.value,
-      },
+        "experience": experience,
 
-      'theme': {
-        'color': '#4F46E5',
-      },
-    };
+        "sharedBy": widget.id ?? "",
 
-    // ==========================================================
-    // DEBUG RAZORPAY
-    // ==========================================================
+        "cd": widget.cd ?? "",
 
-    debugPrint(
-      'Opening Razorpay payment...',
-    );
+        "validPhoneNoId": otpId1.value,
 
-    debugPrint(
-      'Razorpay Order ID: ${order['id']}',
-    );
+        "agreedToTnCnP": true,
 
-    debugPrint(
-      'Razorpay Amount: ${order['amount']}',
-    );
+        // ========================================================
+        // FCM TOKEN
+        // ========================================================
+        "fcmToken": fcmToken.value,
+      };
 
-    // ==========================================================
-    // INITIALIZE RAZORPAY
-    // ==========================================================
+      // ==========================================================
+      // DEBUG REQUEST
+      // ==========================================================
 
-    if (_razorpay == null) {
-      _initRazorpay();
+      debugPrint("══════════════════════════════════════");
+
+      debugPrint("Signup API URL: $url");
+
+      debugPrint(
+        "Signup request body: "
+        "${{...requestBody, "password": "***"}}",
+      );
+
+      debugPrint("══════════════════════════════════════");
+
+      // ==========================================================
+      // CREATE PAYMENT ORDER
+      // ==========================================================
+
+      final response = await http.post(
+        Uri.parse(url),
+
+        headers: {"Content-Type": "application/json"},
+
+        body: jsonEncode(requestBody),
+      );
+
+      // ==========================================================
+      // DEBUG RESPONSE
+      // ==========================================================
+
+      debugPrint('══════════════════════════════════════');
+
+      debugPrint('Signup API status: ${response.statusCode}');
+
+      debugPrint('Signup API response: ${response.body}');
+
+      debugPrint('══════════════════════════════════════');
+
+      // ==========================================================
+      // HTTP STATUS VALIDATION
+      // ==========================================================
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        String errorMessage = 'An error occurred';
+
+        try {
+          final responseData = jsonDecode(response.body);
+
+          if (responseData is Map<String, dynamic>) {
+            errorMessage =
+                responseData['message'] ??
+                responseData['error'] ??
+                errorMessage;
+          }
+        } catch (e) {
+          debugPrint('Error decoding API error response: $e');
+        }
+
+        debugPrint('Signup API error: $errorMessage');
+
+        throw Exception(errorMessage);
+      }
+
+      // ==========================================================
+      // PARSE RESPONSE
+      // ==========================================================
+
+      final decodedResponse = jsonDecode(response.body);
+
+      if (decodedResponse is! Map<String, dynamic>) {
+        throw Exception('Invalid response received from server');
+      }
+
+      final result = decodedResponse;
+
+      // ==========================================================
+      // CHECK SUCCESS
+      // ==========================================================
+
+      if (result['success'] != true) {
+        throw Exception(result['message'] ?? 'Unable to create payment order');
+      }
+
+      // ==========================================================
+      // GET PAYMENT ORDER
+      // ==========================================================
+
+      final order = result['order'];
+
+      // ==========================================================
+      // STORE SIGNUP TOKEN
+      // ==========================================================
+
+      _signupToken = result['signupToken'];
+
+      if (_signupToken == null || _signupToken.toString().isEmpty) {
+        throw Exception('Signup token was not returned by server');
+      }
+
+      // ==========================================================
+      // VALIDATE PAYMENT ORDER
+      // ==========================================================
+
+      if (order == null) {
+        throw Exception('Payment order was not returned by server');
+      }
+
+      if (order is! Map) {
+        throw Exception('Invalid payment order received from server');
+      }
+
+      if (order['id'] == null || order['id'].toString().isEmpty) {
+        throw Exception('Payment order ID was not returned by server');
+      }
+
+      if (order['key'] == null || order['key'].toString().isEmpty) {
+        throw Exception('Razorpay key was not returned by server');
+      }
+
+      // ==========================================================
+      // STORE VENDOR DATA LOCALLY
+      // ==========================================================
+
+      _vendorSignupData = {
+        "token": "",
+
+        "name": name,
+
+        "phoneNo": mobileText,
+
+        "email": "",
+
+        "fcmToken": fcmToken.value,
+      };
+
+      // ==========================================================
+      // STOP LOADING BEFORE RAZORPAY
+      // ==========================================================
+
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+
+      // ==========================================================
+      // RAZORPAY OPTIONS
+      // ==========================================================
+
+      final options = {
+        'key': order['key'],
+
+        'amount': order['amount'],
+
+        'currency': order['currency'] ?? 'INR',
+
+        'name': 'Aapkakaam',
+
+        'description': _t(
+          'Vendor Registration Fee ₹$vendorSignupFee',
+          'वेंडर रजिस्ट्रेशन शुल्क ₹$vendorSignupFee',
+        ),
+
+        'order_id': order['id'],
+
+        'prefill': {'contact': mobileText, 'name': name},
+
+        'notes': {'purpose': 'vendor_signup', 'fcmToken': fcmToken.value},
+
+        'theme': {'color': '#4F46E5'},
+      };
+
+      // ==========================================================
+      // DEBUG RAZORPAY
+      // ==========================================================
+
+      debugPrint('Opening Razorpay payment...');
+
+      debugPrint('Razorpay Order ID: ${order['id']}');
+
+      debugPrint('Razorpay Amount: ${order['amount']}');
+
+      // ==========================================================
+      // INITIALIZE RAZORPAY
+      // ==========================================================
+
+      if (_razorpay == null) {
+        _initRazorpay();
+      }
+
+      // ==========================================================
+      // OPEN RAZORPAY
+      // ==========================================================
+
+      _razorpay!.open(options);
+    } catch (e, stackTrace) {
+      // ==========================================================
+      // ERROR LOGGING
+      // ==========================================================
+
+      debugPrint('══════════════════════════════════════');
+
+      debugPrint('Error during vendor signup: $e');
+
+      debugPrint('Stack trace:');
+
+      debugPrint(stackTrace.toString());
+
+      debugPrint('══════════════════════════════════════');
+
+      // ==========================================================
+      // STOP LOADING
+      // ==========================================================
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        isLoading = false;
+      });
+
+      // ==========================================================
+      // SHOW ERROR
+      // ==========================================================
+
+      _showSnackBar(e.toString().replaceFirst('Exception: ', ''), errorRed);
     }
-
-    // ==========================================================
-    // OPEN RAZORPAY
-    // ==========================================================
-
-    _razorpay!.open(options);
-  } catch (e, stackTrace) {
-    // ==========================================================
-    // ERROR LOGGING
-    // ==========================================================
-
-    debugPrint(
-      '══════════════════════════════════════',
-    );
-
-    debugPrint(
-      'Error during vendor signup: $e',
-    );
-
-    debugPrint(
-      'Stack trace:',
-    );
-
-    debugPrint(
-      stackTrace.toString(),
-    );
-
-    debugPrint(
-      '══════════════════════════════════════',
-    );
-
-    // ==========================================================
-    // STOP LOADING
-    // ==========================================================
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      isLoading = false;
-    });
-
-    // ==========================================================
-    // SHOW ERROR
-    // ==========================================================
-
-    _showSnackBar(
-      e
-          .toString()
-          .replaceFirst('Exception: ', ''),
-      errorRed,
-    );
   }
-}
-
 
   // ============================================================
   // USER SIGNUP (Free)
@@ -1028,66 +788,57 @@ if (!_agreedToTnC) {
 
   Future<void> _userSignup() async {
     // Validation checks
-   if (_nameController.text.isEmpty) {
-  _showSnackBar(
-    _t(
-      'Please enter your name',
-      'कृपया अपना नाम दर्ज करें',
-    ),
-    errorRed,
-  );
-  return;
-}
-if (_mobileController.text.length != 10) {
-  _showSnackBar(
-    _t(
-      'Please enter a valid mobile number',
-      'कृपया सही मोबाइल नंबर दर्ज करें',
-    ),
-    errorRed,
-  );
-  return;
-}
-if (_passwordController.text.length < 6) {
-  _showSnackBar(
-    _t(
-      'Password must be at least 6 characters',
-      'पासवर्ड कम से कम 6 अक्षरों का होना चाहिए',
-    ),
-    errorRed,
-  );
-  return;
-}
-if (_passwordController.text != _rePasswordController.text) {
-  _showSnackBar(
-    _t(
-      'Passwords do not match',
-      'पासवर्ड मैच नहीं हो रहा है',
-    ),
-    errorRed,
-  );
-  return;
-}
-if (_selectedGender == null) {
-  _showSnackBar(
-    _t(
-      'Please select your gender',
-      'कृपया अपना लिंग चुनें',
-    ),
-    errorRed,
-  );
-  return;
-}
-if (!_agreedToTnC) {
-  _showSnackBar(
-    _t(
-      'You must accept the Terms & Conditions and Privacy Policy',
-      'आपको नियम व शर्तें और गोपनीयता नीति स्वीकार करनी होगी',
-    ),
-    errorRed,
-  );
-  return;
-}
+    if (_nameController.text.isEmpty) {
+      _showSnackBar(
+        _t('Please enter your name', 'कृपया अपना नाम दर्ज करें'),
+        errorRed,
+      );
+      return;
+    }
+    if (_mobileController.text.length != 10) {
+      _showSnackBar(
+        _t(
+          'Please enter a valid mobile number',
+          'कृपया सही मोबाइल नंबर दर्ज करें',
+        ),
+        errorRed,
+      );
+      return;
+    }
+    if (_passwordController.text.length < 6) {
+      _showSnackBar(
+        _t(
+          'Password must be at least 6 characters',
+          'पासवर्ड कम से कम 6 अक्षरों का होना चाहिए',
+        ),
+        errorRed,
+      );
+      return;
+    }
+    if (_passwordController.text != _rePasswordController.text) {
+      _showSnackBar(
+        _t('Passwords do not match', 'पासवर्ड मैच नहीं हो रहा है'),
+        errorRed,
+      );
+      return;
+    }
+    if (_selectedGender == null) {
+      _showSnackBar(
+        _t('Please select your gender', 'कृपया अपना लिंग चुनें'),
+        errorRed,
+      );
+      return;
+    }
+    if (!_agreedToTnC) {
+      _showSnackBar(
+        _t(
+          'You must accept the Terms & Conditions and Privacy Policy',
+          'आपको नियम व शर्तें और गोपनीयता नीति स्वीकार करनी होगी',
+        ),
+        errorRed,
+      );
+      return;
+    }
 
     setState(() => isLoading = true);
 
@@ -1188,6 +939,7 @@ if (!_agreedToTnC) {
     Color muted,
   ) async {
     final tempSelected = List<String>.from(_selectedProfessions);
+    String searchQuery = '';
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1198,14 +950,79 @@ if (!_agreedToTnC) {
           builder: (context, setSheetState) {
             final surface =
                 isDarkTheme ? const Color(0xFF1A1A2E) : Colors.white;
+            final query = searchQuery.trim().toLowerCase();
+
+            final filteredCategories =
+                serviceData
+                    .map((rawCategory) {
+                      final category = Map<String, dynamic>.from(
+                        rawCategory as Map,
+                      );
+                      final allCategoryServices =
+                          (category['services'] as List? ?? const [])
+                              .map(
+                                (rawService) => Map<String, dynamic>.from(
+                                  rawService as Map,
+                                ),
+                              )
+                              .toList();
+
+                      final matchingServices =
+                          allCategoryServices.where((service) {
+                            if (query.isEmpty) return true;
+                            final title =
+                                (service['title'] ?? '')
+                                    .toString()
+                                    .toLowerCase();
+                            final hindi =
+                                (service['hindi'] ?? '')
+                                    .toString()
+                                    .toLowerCase();
+                            final description =
+                                (service['description'] ?? '')
+                                    .toString()
+                                    .toLowerCase();
+                            final descriptionHindi =
+                                (service['descriptionHindi'] ?? '')
+                                    .toString()
+                                    .toLowerCase();
+
+                            return title.contains(query) ||
+                                hindi.contains(query) ||
+                                description.contains(query) ||
+                                descriptionHindi.contains(query);
+                          }).toList();
+
+                      return <String, dynamic>{
+                        ...category,
+                        'services': matchingServices,
+                      };
+                    })
+                    .where((category) {
+                      return (category['services'] as List).isNotEmpty;
+                    })
+                    .toList();
+
+            void toggleService(String title, bool? checked) {
+              setSheetState(() {
+                if (checked == true) {
+                  if (!tempSelected.contains(title) &&
+                      tempSelected.length < maxJobs) {
+                    tempSelected.add(title);
+                  }
+                } else {
+                  tempSelected.remove(title);
+                }
+              });
+            }
 
             return SafeArea(
               child: Container(
-                height: MediaQuery.sizeOf(context).height * 0.82,
+                height: MediaQuery.sizeOf(context).height * 0.88,
                 decoration: BoxDecoration(
                   color: surface,
                   borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(28),
+                    top: Radius.circular(26),
                   ),
                 ),
                 child: Column(
@@ -1220,22 +1037,9 @@ if (!_agreedToTnC) {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                      padding: const EdgeInsets.fromLTRB(18, 16, 18, 10),
                       child: Row(
                         children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: primaryBlue.withOpacity(.10),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Icon(
-                              Icons.handyman_rounded,
-                              color: primaryBlue,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1244,16 +1048,15 @@ if (!_agreedToTnC) {
                                   _t('Select your jobs', 'अपने काम चुनें'),
                                   style: TextStyle(
                                     color: text,
-                                    fontSize: 18,
+                                    fontSize: 19,
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
-                                const SizedBox(height: 3),
+                                const SizedBox(height: 4),
                                 Text(
-                                  _t(
-                                    'Choose up to 5 services you provide',
-                                    'आप अधिकतम 5 काम चुन सकते हैं',
-                                  ),
+                                  isHindiNotifier.value
+                                      ? '${tempSelected.length}/$maxJobs काम चुने गए'
+                                      : '${tempSelected.length}/$maxJobs jobs selected',
                                   style: TextStyle(
                                     color: muted,
                                     fontSize: 12,
@@ -1263,158 +1066,273 @@ if (!_agreedToTnC) {
                               ],
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 7,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  tempSelected.length >= maxJobs
-                                      ? primaryBlue.withOpacity(.12)
-                                      : muted.withOpacity(.08),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '${tempSelected.length}/$maxJobs',
-                              style: TextStyle(
-                                color:
-                                    tempSelected.length >= maxJobs
-                                        ? primaryBlue
-                                        : muted,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Divider(height: 1, color: muted.withOpacity(.12)),
-                    Expanded(
-                      child: ListView.builder(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 18),
-                        itemCount: _professions.length,
-                        itemBuilder: (context, index) {
-                          final profession = _professions[index];
-                          final selected = tempSelected.contains(profession);
-                          final disabled =
-                              !selected && tempSelected.length >= maxJobs;
-
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 3),
-                            child: Material(
-                              color: Colors.transparent,
-                              borderRadius: BorderRadius.circular(14),
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(14),
-                                onTap:
-                                    disabled
-                                        ? null
-                                        : () {
-                                          setSheetState(() {
-                                            if (selected) {
-                                              tempSelected.remove(profession);
-                                            } else if (tempSelected.length <
-                                                maxJobs) {
-                                              tempSelected.add(profession);
-                                            }
-                                          });
-                                        },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 150),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 11,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        selected
-                                            ? primaryBlue.withOpacity(.08)
-                                            : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                      color:
-                                          selected
-                                              ? primaryBlue.withOpacity(.35)
-                                              : muted.withOpacity(.08),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 36,
-                                        height: 36,
-                                        decoration: BoxDecoration(
-                                          color:
-                                              selected
-                                                  ? primaryBlue.withOpacity(.12)
-                                                  : muted.withOpacity(.07),
-                                          borderRadius: BorderRadius.circular(
-                                            11,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          Icons.work_outline_rounded,
-                                          size: 19,
-                                          color: selected ? primaryBlue : muted,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 11),
-                                      Expanded(
-                                        child: Text(
-                                          _getProfessionDisplay(profession),
-                                          style: TextStyle(
-                                            color: disabled ? muted : text,
-                                            fontWeight:
-                                                selected
-                                                    ? FontWeight.w800
-                                                    : FontWeight.w600,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ),
-                                      Checkbox(
-                                        value: selected,
-                                        activeColor: primaryBlue,
-                                        onChanged:
-                                            disabled
-                                                ? null
-                                                : (value) {
-                                                  setSheetState(() {
-                                                    if (value == true &&
-                                                        tempSelected.length <
-                                                            maxJobs) {
-                                                      if (!tempSelected
-                                                          .contains(
-                                                            profession,
-                                                          )) {
-                                                        tempSelected.add(
-                                                          profession,
-                                                        );
-                                                      }
-                                                    } else {
-                                                      tempSelected.remove(
-                                                        profession,
-                                                      );
-                                                    }
-                                                  });
-                                                },
-                                      ),
-                                    ],
-                                  ),
+                          if (tempSelected.isNotEmpty)
+                            TextButton(
+                              onPressed: () {
+                                setSheetState(() => tempSelected.clear());
+                              },
+                              child: Text(
+                                _t('Clear', 'साफ करें'),
+                                style: const TextStyle(
+                                  color: primaryBlue,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
                             ),
-                          );
-                        },
+                        ],
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: TextField(
+                        onChanged: (value) {
+                          setSheetState(() => searchQuery = value);
+                        },
+                        style: TextStyle(color: text),
+                        decoration: InputDecoration(
+                          hintText: _t(
+                            'Search jobs or services...',
+                            'काम या सेवा खोजें...',
+                          ),
+                          hintStyle: TextStyle(color: muted),
+                          prefixIcon: Icon(Icons.search, color: muted),
+                          filled: true,
+                          fillColor: muted.withOpacity(.07),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (tempSelected.isNotEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children:
+                              tempSelected.map((title) {
+                                return Container(
+                                  padding: const EdgeInsets.only(
+                                    left: 10,
+                                    right: 4,
+                                    top: 5,
+                                    bottom: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: primaryBlue.withOpacity(.10),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: primaryBlue.withOpacity(.25),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        _getProfessionDisplay(title),
+                                        style: const TextStyle(
+                                          color: primaryBlue,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 3),
+                                      InkWell(
+                                        onTap:
+                                            () => toggleService(title, false),
+                                        borderRadius: BorderRadius.circular(20),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(3),
+                                          child: Icon(
+                                            Icons.close,
+                                            size: 15,
+                                            color: primaryBlue,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                        ),
+                      ),
+                    Divider(height: 1, color: muted.withOpacity(.15)),
+                    Expanded(
+                      child:
+                          filteredCategories.isEmpty
+                              ? Center(
+                                child: Text(
+                                  _t('No services found', 'कोई सेवा नहीं मिली'),
+                                  style: TextStyle(color: muted),
+                                ),
+                              )
+                              : ListView.builder(
+                                padding: const EdgeInsets.fromLTRB(
+                                  14,
+                                  8,
+                                  14,
+                                  16,
+                                ),
+                                itemCount: filteredCategories.length,
+                                itemBuilder: (context, categoryIndex) {
+                                  final category =
+                                      filteredCategories[categoryIndex];
+                                  final categoryName =
+                                      isHindiNotifier.value
+                                          ? (category['headingHindi'] ??
+                                                  category['heading'] ??
+                                                  '')
+                                              .toString()
+                                          : (category['heading'] ?? '')
+                                              .toString();
+                                  final services =
+                                      category['services'] as List<dynamic>;
+
+                                  final selectedInCategory =
+                                      services
+                                          .where(
+                                            (service) => tempSelected.contains(
+                                              (service['title'] ?? '')
+                                                  .toString(),
+                                            ),
+                                          )
+                                          .length;
+
+                                  return Container(
+                                    margin: const EdgeInsets.symmetric(
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: muted.withOpacity(.035),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: muted.withOpacity(.12),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                            13,
+                                            12,
+                                            13,
+                                            8,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  categoryName,
+                                                  style: TextStyle(
+                                                    color: text,
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w900,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (selectedInCategory > 0)
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 3,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: primaryBlue
+                                                        .withOpacity(.12),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
+                                                  ),
+                                                  child: Text(
+                                                    '$selectedInCategory',
+                                                    style: const TextStyle(
+                                                      color: primaryBlue,
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                        ...services.map((rawService) {
+                                          final service =
+                                              Map<String, dynamic>.from(
+                                                rawService as Map,
+                                              );
+                                          final title =
+                                              (service['title'] ?? '')
+                                                  .toString();
+                                          final hindi =
+                                              (service['hindi'] ?? title)
+                                                  .toString();
+                                          final description =
+                                              (isHindiNotifier.value
+                                                      ? service['descriptionHindi']
+                                                      : service['description'])
+                                                  ?.toString() ??
+                                              '';
+                                          final selected = tempSelected
+                                              .contains(title);
+                                          final disabled =
+                                              !selected &&
+                                              tempSelected.length >= maxJobs;
+
+                                          return CheckboxListTile(
+                                            value: selected,
+                                            onChanged:
+                                                disabled
+                                                    ? null
+                                                    : (value) => toggleService(
+                                                      title,
+                                                      value,
+                                                    ),
+                                            activeColor: primaryBlue,
+                                            controlAffinity:
+                                                ListTileControlAffinity.leading,
+                                            dense: true,
+                                            contentPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 10,
+                                                ),
+                                            title: Text(
+                                              isHindiNotifier.value
+                                                  ? hindi
+                                                  : title,
+                                              style: TextStyle(
+                                                color: disabled ? muted : text,
+                                                fontSize: 13,
+                                                fontWeight:
+                                                    selected
+                                                        ? FontWeight.w800
+                                                        : FontWeight.w600,
+                                              ),
+                                            ),
+                                          );
+                                        }),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
                       child: SizedBox(
                         width: double.infinity,
-                        height: 52,
+                        height: 50,
                         child: ElevatedButton(
                           onPressed:
                               tempSelected.isEmpty
@@ -1435,11 +1353,14 @@ if (!_agreedToTnC) {
                             ),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(15),
                             ),
                           ),
                           child: Text(
-                            _t('Done', 'हो गया'),
+                            _t(
+                              'Done (${tempSelected.length}/$maxJobs)',
+                              'हो गया (${tempSelected.length}/$maxJobs)',
+                            ),
                             style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w900,
@@ -1892,12 +1813,13 @@ if (!_agreedToTnC) {
                                         ),
                                         // Payment Info Card
                                         const SizedBox(height: 16),
-                                      if (widget.category ==
-                                                            'vendor') ...[  _paymentInfoCard(
-                                          isDarkTheme,
-                                          text,
-                                          muted,
-                                        ),],
+                                        if (widget.category == 'vendor') ...[
+                                          _paymentInfoCard(
+                                            isDarkTheme,
+                                            text,
+                                            muted,
+                                          ),
+                                        ],
                                         const SizedBox(height: 18),
 
                                         // Submit Button

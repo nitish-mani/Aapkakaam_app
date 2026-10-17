@@ -400,15 +400,15 @@ class _WageRatePageState extends State<WageRatePage> {
         _showSuccessSnackbar(
           context,
           _t(
-            'Wage rate updated successfully',
-            'मजदूरी दर सफलतापूर्वक अपडेट हो गई',
+            'Service charge updated successfully',
+            'सेवा शुल्क सफलतापूर्वक अपडेट हो गई',
           ),
         );
       } else {
-        throw Exception('Failed to update wage rate');
+        throw Exception('Failed to update service charge');
       }
     } catch (e) {
-      debugPrint('Wage rate update error: $e');
+      debugPrint('Service charge update error: $e');
 
       if (!mounted) return;
 
@@ -1224,8 +1224,8 @@ class _WageRatePageState extends State<WageRatePage> {
                                                 const SizedBox(width: 8),
                                                 Text(
                                                   _t(
-                                                    'Save Wage Rate',
-                                                    'मजदूरी दर सेव करें',
+                                                    'Save Service Charge',
+                                                    'सेवा शुल्क सेव करें',
                                                   ),
                                                   style: TextStyle(
                                                     fontSize: 15,
