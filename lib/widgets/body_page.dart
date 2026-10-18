@@ -2,6 +2,7 @@
 // Modern Premium UI Design with Emojis - Complete Service Data
 
 import 'dart:convert';
+import 'package:app_aapkakaam/data/constants.dart';
 import 'package:app_aapkakaam/data/notifiers.dart';
 import 'package:app_aapkakaam/models/data_model.dart';
 import 'package:app_aapkakaam/widgets/booking_date_selection.dart';
@@ -12,6 +13,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:app_aapkakaam/models/maintenance.dart';
+import 'package:app_aapkakaam/widgets/home_banner.dart';
+
 // import 'package:app_aapkakaam/data/notifiers.dart';
 // Service Data Structure with Emojis
 class ServiceItem {
@@ -1122,145 +1125,127 @@ class _BodyPageState extends State<BodyPage>
     return serviceData[_selectedCategory - 1].services;
   }
 
- @override
-Widget build(BuildContext context) {
-  super.build(context);
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
 
-  return MultiNotifierBuilder(
-    notifiers: [
-      isDarkThemeNotifier,
-      isAddressAvailable,
-      isWageRateAvailable,
-      isVendor,
-      isHindiNotifier,
-      maintenanceDataNotifier, // Maintenance data listener
-    ],
-    builder: (context, values, child) {
-      final isDarkTheme = values[0] as bool;
-      final isAddress = values[1] as bool;
-      final isWageRate = values[2] as bool;
-      final vendorMode = values[3] as bool;
-      final isHindi = values[4] as bool;
-      final maintenanceData = values[5] as MaintenanceData?;
+    return MultiNotifierBuilder(
+      notifiers: [
+        isDarkThemeNotifier,
+        isAddressAvailable,
+        isWageRateAvailable,
+        isVendor,
+        isHindiNotifier,
+        maintenanceDataNotifier, // Maintenance data listener
+      ],
+      builder: (context, values, child) {
+        final isDarkTheme = values[0] as bool;
+        final isAddress = values[1] as bool;
+        final isWageRate = values[2] as bool;
+        final vendorMode = values[3] as bool;
+        final isHindi = values[4] as bool;
+        final maintenanceData = values[5] as MaintenanceData?;
 
-      final theme = Theme.of(context);
-      final colorScheme = theme.colorScheme;
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
 
-      final primaryColor = colorScheme.primary;
-      final primaryContainer = colorScheme.primaryContainer;
-      final surface = colorScheme.surface;
-      final onSurface = colorScheme.onSurface;
+        final primaryColor = colorScheme.primary;
+        final primaryContainer = colorScheme.primaryContainer;
+        final surface = colorScheme.surface;
+        final onSurface = colorScheme.onSurface;
 
-      return ColoredBox(
-        color: isDarkTheme
-            ? const Color(0xFF0B1020)
-            : const Color(0xFFF7F9FC),
+        return ColoredBox(
+          color:
+              isDarkTheme ? const Color(0xFF0B1020) : const Color(0xFFF7F9FC),
 
-        child: SafeArea(
-          bottom: false,
+          child: SafeArea(
+            bottom: false,
 
-          child: RefreshIndicator(
-            color: primaryColor,
-            onRefresh: loadUserData,
+            child: RefreshIndicator(
+              color: primaryColor,
+              onRefresh: loadUserData,
 
-            child: CustomScrollView(
-              controller: _scrollController,
+              child: CustomScrollView(
+                controller: _scrollController,
 
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
-              ),
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
 
-              slivers: [
-                // ==========================================
-                // MAINTENANCE BANNER
-                // ==========================================
-                if (maintenanceData != null &&
-                    maintenanceData.showBanner)
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(
-                      14.w,
-                      10.h,
-                      14.w,
-                      0,
-                    ),
+                slivers: [
+                  // ==========================================
+                  // MAINTENANCE BANNER
+                  // ==========================================
+                  if (maintenanceData != null && maintenanceData.showBanner)
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(14.w, 10.h, 14.w, 0),
 
-                    sliver: SliverToBoxAdapter(
-                      child: HomeMaintenanceBanner(
-                        data: maintenanceData,
+                      sliver: SliverToBoxAdapter(
+                        child: HomeMaintenanceBanner(data: maintenanceData),
                       ),
                     ),
-                  ),
-
-                // ==========================================
-                // WARNING CARDS
-                // ==========================================
-                if (!isAddress || (vendorMode && !isWageRate))
+                  // ADMIN-CONTROLLED HOME BANNER
                   SliverPadding(
-                    padding: EdgeInsets.fromLTRB(
-                      14.w,
-                      10.h,
-                      14.w,
-                      0,
+                    padding: EdgeInsets.fromLTRB(14.w, 10.h, 14.w, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: HomeBanner(apiBaseUrl: KConstantURL.url),
+                    ),
+                  ),
+                  // ==========================================
+                  // WARNING CARDS
+                  // ==========================================
+                  if (!isAddress || (vendorMode && !isWageRate))
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(14.w, 10.h, 14.w, 0),
+
+                      sliver: SliverToBoxAdapter(
+                        child: _buildWarningCards(
+                          vendorMode,
+                          isWageRate,
+                          isAddress,
+                          isDarkTheme,
+                          primaryColor,
+                        ),
+                      ),
                     ),
 
+                  // ==========================================
+                  // CATEGORY CHIPS
+                  // ==========================================
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 0),
+
                     sliver: SliverToBoxAdapter(
-                      child: _buildWarningCards(
-                        vendorMode,
-                        isWageRate,
-                        isAddress,
+                      child: _buildCategoryChips(
                         isDarkTheme,
                         primaryColor,
+                        onSurface,
                       ),
                     ),
                   ),
 
-                // ==========================================
-                // CATEGORY CHIPS
-                // ==========================================
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(
-                    14.w,
-                    14.h,
-                    14.w,
-                    0,
-                  ),
+                  // ==========================================
+                  // SERVICES
+                  // ==========================================
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(14.w, 14.h, 14.w, 20.h),
 
-                  sliver: SliverToBoxAdapter(
-                    child: _buildCategoryChips(
+                    sliver: _buildServiceContent(
                       isDarkTheme,
                       primaryColor,
+                      primaryContainer,
+                      surface,
                       onSurface,
                     ),
                   ),
-                ),
-
-                // ==========================================
-                // SERVICES
-                // ==========================================
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(
-                    14.w,
-                    14.h,
-                    14.w,
-                    20.h,
-                  ),
-
-                  sliver: _buildServiceContent(
-                    isDarkTheme,
-                    primaryColor,
-                    primaryContainer,
-                    surface,
-                    onSurface,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 
   // ============================================================
   // Language Helper
@@ -2564,18 +2549,15 @@ Widget build(BuildContext context) {
     );
   }
 }
+
 class HomeMaintenanceBanner extends StatelessWidget {
   final MaintenanceData data;
 
-  const HomeMaintenanceBanner({
-    super.key,
-    required this.data,
-  });
+  const HomeMaintenanceBanner({super.key, required this.data});
 
   @override
   Widget build(BuildContext context) {
-    final isDark =
-        Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return ValueListenableBuilder<bool>(
       valueListenable: isHindiNotifier,
@@ -2600,15 +2582,11 @@ class HomeMaintenanceBanner extends StatelessWidget {
           padding: const EdgeInsets.all(14),
 
           decoration: BoxDecoration(
-            color: isDark
-                ? const Color(0xFF2B210F)
-                : const Color(0xFFFF4D6),
+            color: isDark ? const Color(0xFF2B210F) : const Color(0xFFFF4D6),
 
             borderRadius: BorderRadius.circular(16),
 
-            border: Border.all(
-              color: Colors.orange.withOpacity(0.35),
-            ),
+            border: Border.all(color: Colors.orange.withOpacity(0.35)),
           ),
 
           child: Row(
@@ -2637,14 +2615,12 @@ class HomeMaintenanceBanner extends StatelessWidget {
                       title.isNotEmpty
                           ? title
                           : isHindi
-                              ? 'रखरखाव सूचना'
-                              : 'Maintenance Notice',
+                          ? 'रखरखाव सूचना'
+                          : 'Maintenance Notice',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
-                        color: isDark
-                            ? Colors.white
-                            : Colors.black87,
+                        color: isDark ? Colors.white : Colors.black87,
                       ),
                     ),
 
@@ -2655,9 +2631,10 @@ class HomeMaintenanceBanner extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: isDark
-                              ? Colors.orange.shade100
-                              : Colors.orange.shade900,
+                          color:
+                              isDark
+                                  ? Colors.orange.shade100
+                                  : Colors.orange.shade900,
                         ),
                       ),
                     ],
@@ -2669,9 +2646,7 @@ class HomeMaintenanceBanner extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 12,
                           height: 1.45,
-                          color: isDark
-                              ? Colors.white70
-                              : Colors.black54,
+                          color: isDark ? Colors.white70 : Colors.black54,
                         ),
                       ),
                     ],
@@ -2716,25 +2691,22 @@ class HomeMaintenanceBanner extends StatelessWidget {
   }
 
   String _formatDate(DateTime dateTime) {
-    final day =
-        dateTime.day.toString().padLeft(2, '0');
+    final day = dateTime.day.toString().padLeft(2, '0');
 
-    final month =
-        dateTime.month.toString().padLeft(2, '0');
+    final month = dateTime.month.toString().padLeft(2, '0');
 
     final year = dateTime.year;
 
-    final hour = dateTime.hour == 0
-        ? 12
-        : dateTime.hour > 12
+    final hour =
+        dateTime.hour == 0
+            ? 12
+            : dateTime.hour > 12
             ? dateTime.hour - 12
             : dateTime.hour;
 
-    final minute =
-        dateTime.minute.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
 
-    final period =
-        dateTime.hour >= 12 ? 'PM' : 'AM';
+    final period = dateTime.hour >= 12 ? 'PM' : 'AM';
 
     return '$day/$month/$year, '
         '$hour:$minute $period';
