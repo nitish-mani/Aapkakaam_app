@@ -13,6 +13,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 // import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -938,32 +939,55 @@ class FirebaseNotifications {
     _refreshBookingsData();
   }
 
+  static Future<void> _openAdminLink(Map<String, dynamic> data) async {
+    try {
+      final nestedData = data['data'];
+
+      final rawLink =
+          data['link']?.toString() ??
+          (nestedData is Map ? nestedData['link']?.toString() : null);
+
+      if (rawLink == null || rawLink.trim().isEmpty) {
+        debugPrint('Admin notification link is missing');
+        return;
+      }
+
+      final uri = Uri.tryParse(rawLink.trim());
+
+      if (uri == null ||
+          !['https'].contains(uri.scheme.toLowerCase()) ||
+          uri.host.isEmpty) {
+        debugPrint('Invalid admin notification URL');
+        return;
+      }
+
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+      if (!opened) {
+        debugPrint('Could not open admin notification URL');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('Admin notification link error: $e');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
   // ============================================================
   // NOTIFICATION DATA
   // ============================================================
   static void _handleNotificationData(Map<String, dynamic> data) {
-    debugPrint('========== NOTIFICATION CLICK ==========');
-
-    debugPrint('FULL DATA: ${jsonEncode(data)}');
-
     final type = data['type']?.toString();
     final screen = data['screen']?.toString();
     final notificationType = data['notificationType']?.toString();
     final recipientRole = data['recipientRole']?.toString();
 
-    debugPrint('type: $type');
-    debugPrint('screen: $screen');
-    debugPrint('notificationType: $notificationType');
-    debugPrint('recipientRole: $recipientRole');
-    debugPrint('bookingId: ${data['bookingId']}');
-    debugPrint('concernId: ${data['concernId']}');
-    debugPrint('id: ${data['id']}');
-    debugPrint('month: ${data['month']}');
-    debugPrint('year: ${data['year']}');
-
-    debugPrint('========================================');
-
     try {
+      if (type == 'admin_link' ||
+          screen == 'external_link' ||
+          notificationType == 'admin_link') {
+        unawaited(_openAdminLink(data));
+        return;
+      }
       // ==========================================================
       // WALLET
       // ==========================================================
@@ -979,49 +1003,6 @@ class FirebaseNotifications {
         }
 
         navigator.push(MaterialPageRoute(builder: (_) => const WalletPage()));
-
-        return;
-      }
-
-      // ==========================================================
-      // CONCERN
-      // ==========================================================
-      //
-      // Actual backend payload:
-      //
-      // type       = concern_status
-      // screen     = concerns
-      // concernId  = 6a8a84...
-      //
-      // ==========================================================
-
-      if (type == 'concern_status' ||
-          type == 'concern' ||
-          screen == 'concerns' ||
-          screen == 'concern') {
-        debugPrint('========== CONCERN NOTIFICATION ==========');
-
-        final concernId = data['concernId']?.toString();
-
-        debugPrint('Concern ID: $concernId');
-        debugPrint('Concern status: ${data['status']}');
-        debugPrint('Concern subject: ${data['subject']}');
-
-        if (concernId == null || concernId.isEmpty) {
-          debugPrint('ERROR: concernId missing from notification');
-          return;
-        }
-
-        final navigator = navigatorKey.currentState;
-
-        if (navigator == null) {
-          debugPrint('ERROR: navigatorKey.currentState is null');
-          return;
-        }
-
-        debugPrint('Opening ConcernPage: $concernId');
-
-        navigator.push(MaterialPageRoute(builder: (_) => ConcernsPage()));
 
         return;
       }
