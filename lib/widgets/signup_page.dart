@@ -42,8 +42,28 @@ class _SignupPageState extends State<SignupPage> {
   // CONSTANTS
   // ============================================================
   static const int maxJobs = 5;
-  static const int vendorSignupFee = 50;
 
+  int userSignupFeePaise = 0;
+  int vendorSignupFeePaise = 5000;
+
+  bool isSignupFeeLoading = true;
+
+  int get currentSignupFeePaise {
+    return widget.category == 'vendor'
+        ? vendorSignupFeePaise
+        : userSignupFeePaise;
+  }
+
+  bool get isSignupFree => currentSignupFeePaise == 0;
+
+  String get currentSignupFeeLabel {
+    final rupees = currentSignupFeePaise / 100;
+    return rupees == rupees.roundToDouble()
+        ? '₹${rupees.toInt()}'
+        : '₹${rupees.toStringAsFixed(2)}';
+  }
+
+  int get vendorSignupFee => vendorSignupFeePaise ~/ 100;
   // ============================================================
   // RAZORPAY - FIXED: Using nullable type
   // ============================================================
@@ -139,6 +159,83 @@ class _SignupPageState extends State<SignupPage> {
 
     // ✅ Initialize Razorpay here
     _initRazorpay();
+    _loadSignupFees();
+  }
+
+  Future<void> _loadSignupFees() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse("$_serverUrl/signup-fees"),
+            headers: {"Accept": "application/json"},
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        throw Exception("Signup fee API failed: ${response.statusCode}");
+      }
+
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception("Invalid signup fee response");
+      }
+
+      final config =
+          decoded["fees"] ??
+          decoded["data"]?["fees"] ??
+          decoded["data"] ??
+          decoded;
+
+      int? readPaise(String type) {
+        final directPaise = config["${type}AmountPaise"];
+        if (directPaise != null) {
+          return (directPaise as num).round();
+        }
+
+        final directRupees = config["${type}AmountRupees"];
+        if (directRupees != null) {
+          return ((directRupees as num) * 100).round();
+        }
+
+        final nested = config[type];
+        if (nested is Map) {
+          final paise = nested["amountPaise"];
+          if (paise != null) return (paise as num).round();
+
+          final rupees = nested["amountRupees"];
+          if (rupees != null) return ((rupees as num) * 100).round();
+        }
+
+        return null;
+      }
+
+      final userFee = readPaise("user");
+      final vendorFee = readPaise("vendor");
+
+      if (userFee == null ||
+          vendorFee == null ||
+          userFee < 0 ||
+          vendorFee < 0) {
+        throw Exception("User/vendor signup fee missing in API response");
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        userSignupFeePaise = userFee;
+        vendorSignupFeePaise = vendorFee;
+        isSignupFeeLoading = false;
+      });
+    } catch (e) {
+      debugPrint("Failed to load signup fees: $e");
+
+      if (!mounted) return;
+
+      setState(() {
+        isSignupFeeLoading = false;
+      });
+    }
   }
 
   void _initRazorpay() {
@@ -552,21 +649,6 @@ class _SignupPageState extends State<SignupPage> {
       };
 
       // ==========================================================
-      // DEBUG REQUEST
-      // ==========================================================
-
-      debugPrint("══════════════════════════════════════");
-
-      debugPrint("Signup API URL: $url");
-
-      debugPrint(
-        "Signup request body: "
-        "${{...requestBody, "password": "***"}}",
-      );
-
-      debugPrint("══════════════════════════════════════");
-
-      // ==========================================================
       // CREATE PAYMENT ORDER
       // ==========================================================
 
@@ -577,18 +659,6 @@ class _SignupPageState extends State<SignupPage> {
 
         body: jsonEncode(requestBody),
       );
-
-      // ==========================================================
-      // DEBUG RESPONSE
-      // ==========================================================
-
-      debugPrint('══════════════════════════════════════');
-
-      debugPrint('Signup API status: ${response.statusCode}');
-
-      debugPrint('Signup API response: ${response.body}');
-
-      debugPrint('══════════════════════════════════════');
 
       // ==========================================================
       // HTTP STATUS VALIDATION
@@ -630,20 +700,55 @@ class _SignupPageState extends State<SignupPage> {
       // ==========================================================
       // CHECK SUCCESS
       // ==========================================================
-
       if (result['success'] != true) {
-        throw Exception(result['message'] ?? 'Unable to create payment order');
+        throw Exception(
+          result['message'] ?? 'Unable to complete vendor signup',
+        );
       }
 
       // ==========================================================
-      // GET PAYMENT ORDER
+      // FREE SIGNUP — NO PAYMENT REQUIRED
       // ==========================================================
+      final isFreeSignup =
+          result['isFreeSignup'] == true || result['signupFee'] == 0;
 
+      if (isFreeSignup) {
+        final vendorId = result['vendorId'];
+
+        if (vendorId == null || vendorId.toString().isEmpty) {
+          throw Exception('Vendor ID was not returned by server');
+        }
+
+        debugPrint('Free vendor signup successful: $vendorId');
+
+        if (!mounted) return;
+
+        setState(() {
+          isLoading = false;
+        });
+
+        _showSnackBar(
+          _t('Registration successful!', 'रजिस्ट्रेशन सफल रहा!'),
+          Colors.green,
+        );
+        Timer(
+          const Duration(seconds: 2),
+          () => Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => LoginPage(category: widget.category),
+            ),
+          ),
+        );
+        // TODO: Yahan apne existing signup-success/navigation flow
+        // ko call karein, jaise login screen ya OTP/login flow.
+        return;
+      }
+
+      // ==========================================================
+      // PAID SIGNUP — RAZORPAY REQUIRED
+      // ==========================================================
       final order = result['order'];
-
-      // ==========================================================
-      // STORE SIGNUP TOKEN
-      // ==========================================================
 
       _signupToken = result['signupToken'];
 
@@ -651,16 +756,8 @@ class _SignupPageState extends State<SignupPage> {
         throw Exception('Signup token was not returned by server');
       }
 
-      // ==========================================================
-      // VALIDATE PAYMENT ORDER
-      // ==========================================================
-
-      if (order == null) {
+      if (order == null || order is! Map) {
         throw Exception('Payment order was not returned by server');
-      }
-
-      if (order is! Map) {
-        throw Exception('Invalid payment order received from server');
       }
 
       if (order['id'] == null || order['id'].toString().isEmpty) {
@@ -671,80 +768,39 @@ class _SignupPageState extends State<SignupPage> {
         throw Exception('Razorpay key was not returned by server');
       }
 
-      // ==========================================================
-      // STORE VENDOR DATA LOCALLY
-      // ==========================================================
-
+      // Store vendor data locally
       _vendorSignupData = {
         "token": "",
-
         "name": name,
-
         "phoneNo": mobileText,
-
         "email": "",
-
         "fcmToken": fcmToken.value,
       };
 
-      // ==========================================================
-      // STOP LOADING BEFORE RAZORPAY
-      // ==========================================================
+      if (!mounted) return;
 
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
-      }
-
-      // ==========================================================
-      // RAZORPAY OPTIONS
-      // ==========================================================
+      setState(() {
+        isLoading = false;
+      });
 
       final options = {
         'key': order['key'],
-
         'amount': order['amount'],
-
         'currency': order['currency'] ?? 'INR',
-
         'name': 'Aapkakaam',
-
         'description': _t(
           'Vendor Registration Fee ₹$vendorSignupFee',
           'वेंडर रजिस्ट्रेशन शुल्क ₹$vendorSignupFee',
         ),
-
         'order_id': order['id'],
-
         'prefill': {'contact': mobileText, 'name': name},
-
         'notes': {'purpose': 'vendor_signup', 'fcmToken': fcmToken.value},
-
         'theme': {'color': '#4F46E5'},
       };
-
-      // ==========================================================
-      // DEBUG RAZORPAY
-      // ==========================================================
-
-      debugPrint('Opening Razorpay payment...');
-
-      debugPrint('Razorpay Order ID: ${order['id']}');
-
-      debugPrint('Razorpay Amount: ${order['amount']}');
-
-      // ==========================================================
-      // INITIALIZE RAZORPAY
-      // ==========================================================
 
       if (_razorpay == null) {
         _initRazorpay();
       }
-
-      // ==========================================================
-      // OPEN RAZORPAY
-      // ==========================================================
 
       _razorpay!.open(options);
     } catch (e, stackTrace) {
@@ -1866,16 +1922,32 @@ class _SignupPageState extends State<SignupPage> {
                                                           const SizedBox(
                                                             width: 4,
                                                           ),
-                                                          Text(
-                                                            '₹$vendorSignupFee ',
-                                                            style:
-                                                                const TextStyle(
-                                                                  fontSize: 16,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w900,
-                                                                ),
-                                                          ),
+
+                                                          if (vendorSignupFee ==
+                                                              0) ...[
+                                                            Text(
+                                                              _t(
+                                                                'FREE ',
+                                                                'मुफ़्त ',
+                                                              ),
+                                                              style: const TextStyle(
+                                                                fontSize: 16,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w900,
+                                                              ),
+                                                            ),
+                                                          ] else ...[
+                                                            Text(
+                                                              '₹$vendorSignupFee ',
+                                                              style: const TextStyle(
+                                                                fontSize: 16,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w900,
+                                                              ),
+                                                            ),
+                                                          ],
                                                         ] else ...[
                                                           const Icon(
                                                             Icons
@@ -1886,13 +1958,20 @@ class _SignupPageState extends State<SignupPage> {
                                                             width: 8,
                                                           ),
                                                         ],
+
                                                         Text(
                                                           widget.category ==
                                                                   'vendor'
-                                                              ? _t(
-                                                                'Pay & Signup',
-                                                                'भुगतान करें और खाता बनाएं',
-                                                              )
+                                                              ? (vendorSignupFee ==
+                                                                      0
+                                                                  ? _t(
+                                                                    'Create Account',
+                                                                    'खाता बनाएं',
+                                                                  )
+                                                                  : _t(
+                                                                    'Pay & Signup',
+                                                                    'भुगतान करें और खाता बनाएं',
+                                                                  ))
                                                               : _t(
                                                                 'Create Account',
                                                                 'खाता बनाएं',
@@ -1990,6 +2069,23 @@ class _SignupPageState extends State<SignupPage> {
   // ============================================================
 
   Widget _paymentInfoCard(bool isDarkTheme, Color text, Color muted) {
+    const double originalFee = 50.0;
+    final double currentFee = vendorSignupFee.toDouble();
+
+    final bool isFree = currentFee == 0;
+    final bool hasDiscount = currentFee > 0 && currentFee < originalFee;
+    final bool hasPriceIncrease = currentFee > originalFee;
+
+    final int discountPercent =
+        hasDiscount
+            ? (((originalFee - currentFee) / originalFee) * 100).round()
+            : 0;
+
+    final String priceText =
+        currentFee == currentFee.roundToDouble()
+            ? currentFee.toInt().toString()
+            : currentFee.toStringAsFixed(2);
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -2018,49 +2114,129 @@ class _SignupPageState extends State<SignupPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _t('Vendor Account Creation Fee', 'वेंडर खाता निर्माण शुल्क'),
+                  isFree
+                      ? _t('Free Vendor Signup', 'निःशुल्क वेंडर साइनअप')
+                      : _t(
+                        'Vendor Account Creation Fee',
+                        'वेंडर खाता निर्माण शुल्क',
+                      ),
                   style: TextStyle(
                     color: text,
                     fontWeight: FontWeight.w800,
                     fontSize: 14,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  _t(
-                    'Pay ₹$vendorSignupFee to complete vendor signup.',
-                    'साइनअप पूरा करने के लिए ₹$vendorSignupFee भुगतान करें।',
+                const SizedBox(height: 4),
+
+                if (isFree) ...[
+                  Text(
+                    _t(
+                      'Create your vendor account for free.',
+                      'अपना वेंडर खाता निःशुल्क बनाएँ।',
+                    ),
+                    style: TextStyle(
+                      color: successGreen,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  style: TextStyle(color: muted, fontSize: 11),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _t(
-                    '₹$vendorSignupFee will be added to your vendor balance.',
-                    '₹$vendorSignupFee आपके वेंडर बैलेंस में जोड़ दिए जाएंगे।',
+                ] else ...[
+                  Text(
+                    _t(
+                      'Pay ₹$priceText to complete vendor signup.',
+                      'साइनअप पूरा करने के लिए ₹$priceText भुगतान करें।',
+                    ),
+                    style: TextStyle(color: muted, fontSize: 11),
                   ),
-                  style: TextStyle(
-                    color: successGreen,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
+
+                  if (hasDiscount) ...[
+                    const SizedBox(height: 4),
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        Text(
+                          '₹50',
+                          style: TextStyle(
+                            color: muted,
+                            fontSize: 11,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                        Text(
+                          _t(
+                            'Save $discountPercent%',
+                            '$discountPercent% की बचत',
+                          ),
+                          style: TextStyle(
+                            color: successGreen,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else if (hasPriceIncrease) ...[
+                    Text(
+                      _t('Updated signup fee', 'अपडेट किया गया साइनअप शुल्क'),
+                      style: TextStyle(color: muted, fontSize: 10),
+                    ),
+                  ],
+
+                  const SizedBox(height: 2),
+                  Text(
+                    _t(
+                      'Your signup fee will be credited to your vendor balance.',
+                      'आपका साइनअप शुल्क आपके वेंडर बैलेंस में जमा किया जाएगा।',
+                    ),
+                    style: TextStyle(
+                      color: successGreen,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: primaryBlue,
+              color: isFree ? successGreen : primaryBlue,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Text(
-              '₹$vendorSignupFee',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 16,
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (hasDiscount)
+                  Text(
+                    '₹50',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 10,
+                      decoration: TextDecoration.lineThrough,
+                    ),
+                  ),
+                Text(
+                  isFree ? _t('FREE', 'मुफ़्त') : '₹$priceText',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
+                ),
+                if (hasDiscount)
+                  Text(
+                    '$discountPercent% OFF',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
